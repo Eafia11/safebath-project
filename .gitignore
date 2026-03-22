@@ -1,0 +1,19 @@
+# ===== Python =====
+venv/
+__pycache__/
+*.pyc
+.env
+
+# ===== Android =====
+.gradle/
+local.properties
+*.iml
+.idea/
+build/
+
+# ===== VS Code =====
+.vscode/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
