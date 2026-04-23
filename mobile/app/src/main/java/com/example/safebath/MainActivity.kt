@@ -45,9 +45,9 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.TextStyle
 
-// ============================== [?꾧뎄 諛??곹깭 ?뺤쓽] ==============================
+// ============================== [Basic App State] ==============================
 
-// 1. 湲닿툒 ?뚮엺 ?뚮━ ?ъ깮 ?⑥닔
+// 1. Emergency alarm playback helper
 fun playEmergencyAlarm(context: Context): Ringtone? {
     var alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
     if (alarmUri == null) {
@@ -58,7 +58,7 @@ fun playEmergencyAlarm(context: Context): Ringtone? {
     return ringtone
 }
 
-// 2. UI ?뚮쭏 而щ윭 ?뺤쓽
+// 2. UI color palette
 object SafeBathTheme {
     val PrimaryBlue = Color(0xFF2196F3)
     val BackgroundGray = Color(0xFFF2F4F7)
@@ -68,10 +68,10 @@ object SafeBathTheme {
     val AlertRed = Color(0xFFE53935)
 }
 
-// 3. ???붾㈃ ?⑥쐞 ?곹깭
+// 3. Top-level screen state
 enum class SafeBathScreen { LOGIN, CALIBRATION, DASHBOARD }
 
-// 4. ?뺤떎 ?대? ?ㅼ떆媛??곹깭 ?뺤쓽 (mmWave ?곕룞??
+// 4. Real-time bathroom state from mmWave + rules
 enum class BathState(val description: String, val color: Color) {
     EMPTY("사용 안 함", Color.Gray),
     ENTERING("진입 중", Color(0xFF2196F3)),
@@ -101,7 +101,7 @@ private class ZoneCalibrationDraft(
     var radius by mutableStateOf(radius)
 }
 
-// 5. ?ㅼ떆媛??곹깭 愿由щ? ?꾪븳 ViewModel
+// 5. ViewModel for real-time state management
 class BathViewModel : ViewModel() {
     private val repository = SafeBathRepository()
     private var pollingJob: Job? = null
@@ -116,7 +116,7 @@ class BathViewModel : ViewModel() {
         refreshStatus()
     }
 
-    fun updateState(newState: BathState) {      // ?꾩옱 ?곹깭 ?⑥닔
+    fun updateState(newState: BathState) {
         _currentState.value = newState
     }
 
@@ -200,7 +200,7 @@ private fun String.toBathState(): BathState = when (this.uppercase()) {
     else -> BathState.EMPTY
 }
 
-// ============================== [??硫붿씤 吏꾩엯?? ==============================
+// ============================== [Main Entry] ==============================
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -214,7 +214,7 @@ fun SafeBathApp() {
     val context = LocalContext.current
     val sharedPref = remember { context.getSharedPreferences("SafeBathPrefs", Context.MODE_PRIVATE) }
 
-    // ?ㅼ떆媛??곹깭 愿由щ? ?꾪븳 酉곕え???앹꽦
+    // ViewModel used across the app flow
     val bathViewModel = remember { BathViewModel() }
 
     var currentScreen by remember { mutableStateOf(SafeBathScreen.LOGIN) }
@@ -288,7 +288,7 @@ fun SafeBathApp() {
     }
 }
 
-// ============================== [1. 濡쒓렇???붾㈃] ==============================
+// ============================== [1. Login Screen] ==============================
 @Composable
 fun LoginScreen(onLoginSuccess: (Boolean) -> Unit) {
     var isGuardianChecked by remember { mutableStateOf(false) }
@@ -352,7 +352,7 @@ fun LoginScreen(onLoginSuccess: (Boolean) -> Unit) {
     }
 }
 
-// ============================== [2. 醫뚰몴 ?ㅼ젙 ?붾㈃] ==============================
+// ============================== [2. Calibration Screen] ==============================
 @Composable
 fun ToiletCalibrationScreen(
     viewModel: BathViewModel,
@@ -590,7 +590,7 @@ private fun createNextZoneDraft(existingZones: List<ZoneCalibrationDraft>): Zone
     }
 }
 
-// ============================== [3. ??쒕낫??(?섎떒 ??堉덈?)] ==============================
+// ============================== [3. Dashboard] ==============================
 @Composable
 fun UsagePatternDashboard(x: Float, y: Float, isGuardian: Boolean, viewModel: BathViewModel, onReset: () -> Unit) {
     val context = LocalContext.current
@@ -612,16 +612,17 @@ fun UsagePatternDashboard(x: Float, y: Float, isGuardian: Boolean, viewModel: Ba
         }
     }
 
-    // --- 湲닿툒 ?뚮┝ ?앹뾽 (紐⑤뱺 ??뿉??怨듯넻 ?숈옉) ---
+    // Emergency alert popup shown from any tab
     if (isEmergencyDetected) {
         LaunchedEffect(Unit) {
             playingRingtone = playEmergencyAlarm(context)
-            viewModel.updateState(BathState.EMERGENCY) // ?곹깭??湲닿툒?쇰줈 蹂寃?        }
+            viewModel.updateState(BathState.EMERGENCY)
+        }
         AlertDialog(
             onDismissRequest = { },
             icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = SafeBathTheme.AlertRed, modifier = Modifier.size(48.dp)) },
-            title = { Text(text = "?숈긽 ?섏떖 媛먯?!", fontWeight = FontWeight.Bold, color = SafeBathTheme.AlertRed, textAlign = TextAlign.Center) },
-            text = { Text("?뺤떎 ?댁뿉???곕윭吏??먮뒗 鍮꾩젙?곸쟻??泥대쪟媛 媛먯??섏뿀?듬땲??\n\n利됱떆 ?뺤씤???꾩슂?⑸땲??", textAlign = TextAlign.Center) },
+            title = { Text(text = "긴급 상황 감지", fontWeight = FontWeight.Bold, color = SafeBathTheme.AlertRed, textAlign = TextAlign.Center) },
+            text = { Text("욕실 내 쓰러짐 또는 비정상 체류가 감지되었습니다.\n\n즉시 확인이 필요합니다.", textAlign = TextAlign.Center) },
             confirmButton = {
                 Button(
                     onClick = { playingRingtone?.stop() },
@@ -630,37 +631,38 @@ fun UsagePatternDashboard(x: Float, y: Float, isGuardian: Boolean, viewModel: Ba
                 ) {
                     Icon(Icons.Default.Call, contentDescription = null, tint = Color.White)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("119 湲닿툒 ?좉퀬", fontWeight = FontWeight.Bold)
+                    Text("119 긴급 신고", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = {
                     playingRingtone?.stop()
                     isEmergencyDetected = false
-                    viewModel.updateState(BathState.EMPTY) // 珥덇린??                }, modifier = Modifier.fillMaxWidth()) {
-                    Text("?ㅼ옉??/ ?곹솴 醫낅즺", color = SafeBathTheme.OnSecondaryText)
+                    viewModel.updateState(BathState.EMPTY)
+                }, modifier = Modifier.fillMaxWidth()) {
+                    Text("오경보 / 상황 종료", color = SafeBathTheme.OnSecondaryText)
                 }
             },
             containerColor = Color.White
         )
     }
 
-    // --- Scaffold 堉덈? 諛??섎떒 ?ㅻ퉬寃뚯씠??---
+    // Scaffold with bottom navigation
     Scaffold(
         bottomBar = {
             NavigationBar(containerColor = Color.White, tonalElevation = 8.dp) {
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Home, contentDescription = "??) }, label = { Text("??) },
+                    icon = { Icon(Icons.Default.Home, contentDescription = "홈") }, label = { Text("홈") },
                     selected = selectedTab == 0, onClick = { selectedTab = 0 },
                     colors = NavigationBarItemDefaults.colors(selectedIconColor = SafeBathTheme.PrimaryBlue, selectedTextColor = SafeBathTheme.PrimaryBlue, indicatorColor = Color(0xFFE3F2FD))
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.BarChart, contentDescription = "由ы룷??) }, label = { Text("由ы룷??) },
+                    icon = { Icon(Icons.Default.BarChart, contentDescription = "리포트") }, label = { Text("리포트") },
                     selected = selectedTab == 1, onClick = { selectedTab = 1 },
                     colors = NavigationBarItemDefaults.colors(selectedIconColor = SafeBathTheme.PrimaryBlue, selectedTextColor = SafeBathTheme.PrimaryBlue, indicatorColor = Color(0xFFE3F2FD))
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "?ㅼ젙") }, label = { Text("?ㅼ젙") },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "설정") }, label = { Text("설정") },
                     selected = selectedTab == 2, onClick = { selectedTab = 2 },
                     colors = NavigationBarItemDefaults.colors(selectedIconColor = SafeBathTheme.PrimaryBlue, selectedTextColor = SafeBathTheme.PrimaryBlue, indicatorColor = Color(0xFFE3F2FD))
                 )
@@ -677,7 +679,7 @@ fun UsagePatternDashboard(x: Float, y: Float, isGuardian: Boolean, viewModel: Ba
     }
 }
 
-// --- 3-1. ?????댁슜 ---
+// Home tab
 @Composable
 fun HomeTabContent(isGuardian: Boolean, viewModel: BathViewModel, onTestEmergency: () -> Unit) {
     val scrollState = rememberScrollState()
@@ -704,7 +706,7 @@ fun HomeTabContent(isGuardian: Boolean, viewModel: BathViewModel, onTestEmergenc
             }
         }
 
-        // ?ㅼ떆媛??곹깭 諛섏쁺 移대뱶
+        // Real-time state card
         RealTimeStatusCard(state = currentState)
         Spacer(modifier = Modifier.height(12.dp))
         Card(
@@ -745,21 +747,20 @@ fun HomeTabContent(isGuardian: Boolean, viewModel: BathViewModel, onTestEmergenc
             }
         }
 
-        // [?뚯뒪??湲곕뒫] ?곹깭 蹂寃??쒕??덉씠??踰꾪듉??        Spacer(modifier = Modifier.height(24.dp))
-        Text("?곹깭 蹂寃??쒕??덉씠??(媛쒕컻??", style = MaterialTheme.typography.labelMedium, color = SafeBathTheme.OnSecondaryText)
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("상태 변경 시뮬레이션 (개발용)", style = MaterialTheme.typography.labelMedium, color = SafeBathTheme.OnSecondaryText)
         Spacer(modifier = Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { viewModel.updateState(BathState.ENTERING) }, modifier = Modifier.weight(1f)) { Text("吏꾩엯") }
-            Button(onClick = { viewModel.updateState(BathState.ACTIVE) }, modifier = Modifier.weight(1f)) { Text("?쒕룞") }
-            Button(onClick = { viewModel.updateState(BathState.TOILET_USE) }, modifier = Modifier.weight(1f)) { Text("蹂湲?) }
+            Button(onClick = { viewModel.updateState(BathState.ENTERING) }, modifier = Modifier.weight(1f)) { Text("진입") }
+            Button(onClick = { viewModel.updateState(BathState.ACTIVE) }, modifier = Modifier.weight(1f)) { Text("활동") }
+            Button(onClick = { viewModel.updateState(BathState.TOILET_USE) }, modifier = Modifier.weight(1f)) { Text("변기") }
         }
     }
 }
 
-// --- ?ㅼ떆媛??곹깭 ?쒖떆 而댄룷?뚰듃 ---
+// Real-time status card
 @Composable
 fun RealTimeStatusCard(state: BathState) {
-    // ?곹깭???곕Ⅸ ?쏀넗洹몃옩(?꾩씠肄?怨??붿껌?섏떊 ?곸꽭 臾멸뎄 留ㅽ븨
     val (icon, detailText) = when (state) {
         BathState.EMPTY -> Icons.Default.MeetingRoom to "현재 욕실 사용이 감지되지 않았습니다."
         BathState.ENTERING -> Icons.Default.DirectionsWalk to "사용자가 욕실에 진입한 상태입니다.\n센서 기반 모니터링을 시작합니다."
@@ -776,7 +777,6 @@ fun RealTimeStatusCard(state: BathState) {
         shape = RoundedCornerShape(16.dp)
     ) {
         Row(modifier = Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            // ?쏀넗洹몃옩 (湲곗〈蹂대떎 ?ш린瑜?48.dp濡??댁쭩 ?ㅼ썙???덉뿉 ???꾧쾶 ??
             Icon(
                 imageVector = icon,
                 contentDescription = null,
@@ -790,33 +790,32 @@ fun RealTimeStatusCard(state: BathState) {
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // ?붿껌?섏떊 ?곸꽭 臾멸뎄瑜??묎쾶(bodySmall) ?섎떒??諛곗튂
                 Text(
                     text = detailText,
                     style = MaterialTheme.typography.bodySmall,
                     color = SafeBathTheme.OnSurfaceText,
-                    lineHeight = 16.sp // 湲?④? 湲몄뼱????以꾩씠 ??寃쎌슦瑜??꾪빐 以꾧컙寃?議곗젙
+                    lineHeight = 16.sp
                 )
             }
         }
     }
 }
 
-// ============================== [??2: 由ы룷???붾㈃ (?낃렇?덉씠??踰꾩쟾)] ==============================
+
 @Composable
 fun ReportTabContent() {
     val scrollState = rememberScrollState()
-    val days = listOf("??, "??, "??, "紐?, "湲?, "??, "??)
+    val days = listOf("월", "화", "수", "목", "금", "토", "일")
     val nightWeeklyUsage = listOf(1, 2, 0, 1, 3, 2, 1)
     val stayTimeData = listOf(5.5f, 6.0f, 4.5f, 7.0f, 9.5f, 6.5f, 5.0f)
 
-    // 洹몃옒???꾩뿉 湲?⑤? 洹몃━湲??꾪븳 ?꾧뎄
+
     val textMeasurer = rememberTextMeasurer()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(scrollState)) {
-        Text("嫄닿컯 遺꾩꽍 由ы룷??, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 24.dp))
+        Text("건강 분석 리포트", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 24.dp))
 
-        // --- 1. 二쇨컙 醫낇빀 ?덉쟾 吏??---
+
         Card(
             modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
             colors = CardDefaults.cardColors(containerColor = SafeBathTheme.PrimaryBlue),
@@ -827,19 +826,19 @@ fun ReportTabContent() {
                 horizontalArrangement = Arrangement.SpaceBetween)
             {
                 Column {
-                    Text("?대쾲 二??덉쟾 吏??, style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.8f))
+                    Text("이번 주 안전 지수", style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.8f))
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text("?덉젙??, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("안정적", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color.White)
                 }
                 Box(contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(progress = { 0.92f }, modifier = Modifier.size(60.dp), color = Color.White, trackColor = Color.White.copy(alpha = 0.3f), strokeWidth = 6.dp)
-                    Text("92??, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("92점", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
         }
 
-        // --- 2. ?쇨컙 ?댁슜 ?⑦꽩  ---
-        Text("?쇨컙 ?붿옣???댁슜 ?⑦꽩", style = MaterialTheme.typography.titleMedium, color = SafeBathTheme.OnSecondaryText, modifier = Modifier.padding(bottom = 12.dp))
+
+        Text("야간 화장실 이용 패턴", style = MaterialTheme.typography.titleMedium, color = SafeBathTheme.OnSecondaryText, modifier = Modifier.padding(bottom = 12.dp))
         Card(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
             colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -847,8 +846,8 @@ fun ReportTabContent() {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
-                        Text(text = "?붿씪蹂??쇨컙 ?댁슜", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text(text = "理쒓퀬 ?댁슜?? 湲덉슂??, style = MaterialTheme.typography.labelSmall, color = SafeBathTheme.OnSecondaryText)
+                        Text(text = "요일별 야간 이용", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(text = "최다 이용일: 금요일", style = MaterialTheme.typography.labelSmall, color = SafeBathTheme.OnSecondaryText)
                     }
                     //Text(text = "3??, style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.ExtraBold, color = SafeBathTheme.PrimaryBlue)
                 }
@@ -865,31 +864,31 @@ fun ReportTabContent() {
             }
         }
 
-        // --- 3. 泥대쪟 ?쒓컙 ?몃젋??---
-        Text("泥대쪟 ?쒓컙 ?몃젋??, style = MaterialTheme.typography.titleMedium, color = SafeBathTheme.OnSecondaryText, modifier = Modifier.padding(bottom = 12.dp))
+
+        Text("체류 시간 트렌드", style = MaterialTheme.typography.titleMedium, color = SafeBathTheme.OnSecondaryText, modifier = Modifier.padding(bottom = 12.dp))
         Card(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
             colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(text = "?붿씪蹂??됯퇏 泥대쪟 ?쒓컙(遺?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(text = "요일별 평균 체류 시간(분)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Canvas(modifier = Modifier.fillMaxWidth().height(150.dp).padding(vertical = 16.dp)) {
                     val maxTime = stayTimeData.maxOrNull() ?: 1f
 
-                    val sidePadding = 40f   // 醫뚯슦 ?щ갚 (留?????湲?④? ?섎━吏 ?딄쾶)
-                    val topPadding = 60f    // ?꾩そ ?щ갚 (湲?④? ?ㅼ뼱媛?怨듦컙)
-                    val bottomPadding = 20f // ?꾨옒履??щ갚
+                    val sidePadding = 40f
+                    val topPadding = 60f
+                    val bottomPadding = 20f
 
-                    // ?꾩껜 ?꾪솕吏 ?ш린?먯꽌 ?щ갚??類 '?ㅼ젣 洹몃┝??洹몃젮吏?怨듦컙'
+
                     val drawWidth = size.width - (sidePadding * 2)
                     val drawHeight = size.height - topPadding - bottomPadding
 
                     val stepX = drawWidth / (stayTimeData.size - 1)
                     val path = Path()
 
-                    // ??洹몃━湲?(怨꾩궛?앹뿉 ?щ갚 異붽?)
+
                     stayTimeData.forEachIndexed { index, value ->
                         val currentX = sidePadding + (index * stepX)
                         val currentY = topPadding + (drawHeight - (value / maxTime * drawHeight))
@@ -898,21 +897,21 @@ fun ReportTabContent() {
                     }
                     drawPath(path = path, color = SafeBathTheme.PrimaryBlue, style = Stroke(width = 6f))
 
-                    // 瑗?쭞???먭낵 ?レ옄 ?띿뒪??洹몃━湲?                    stayTimeData.forEachIndexed { index, value ->
+                    // 瑗?쭞???먭낵 ?レ옄 ?띿뒪??洹몃━湲?
+                        stayTimeData.forEachIndexed { index, value ->
                         val currentX = sidePadding + (index * stepX)
                         val currentY = topPadding + (drawHeight - (value / maxTime * drawHeight))
 
-                        // ?뚮?????                        drawCircle(color = SafeBathTheme.PrimaryBlue, radius = 8f, center = Offset(currentX, currentY))
+                        drawCircle(color = SafeBathTheme.PrimaryBlue, radius = 8f, center = Offset(currentX, currentY))
 
-                        // ?レ옄 ?띿뒪??                        val textStr = "${value}"
+                        val textStr = "${value}"
                         val textStyle = TextStyle(color = SafeBathTheme.OnSurfaceText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
 
-                        // ?뮕 湲?⑥쓽 ?ㅼ젣 媛濡??몃줈 湲몄씠瑜?痢≪젙?⑸땲??
+
                         val textLayoutResult = textMeasurer.measure(textStr, textStyle)
                         val textWidth = textLayoutResult.size.width
                         val textHeight = textLayoutResult.size.height
 
-                        // 痢≪젙??湲몄씠瑜?諛뷀깢?쇰줈 ?먯쓽 ?뺤쨷??諛붾줈 ?꾩뿉 湲?⑤? 諛곗튂?⑸땲??
                         drawText(
                             textLayoutResult = textLayoutResult,
                             topLeft = Offset(currentX - (textWidth / 2f), currentY - textHeight - 15f)
@@ -920,7 +919,7 @@ fun ReportTabContent() {
                     }
                 }
 
-                // ?섎떒 ?붿씪 ?띿뒪??(?꾩쓽 sidePadding 鍮꾩쑉??留욊쾶 ?묐걹 ?щ갚 議곗젙)
+
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -930,28 +929,28 @@ fun ReportTabContent() {
             }
         }
 
-        // --- [?좉퇋 異붽?] 4. 理쒓렐 ?뱀씠?ы빆 ?대젰 濡쒓렇 ---
-        Text("理쒓렐 ?뱀씠?ы빆 ?대젰", style = MaterialTheme.typography.titleMedium, color = SafeBathTheme.OnSecondaryText, modifier = Modifier.padding(bottom = 12.dp))
+
+        Text("최근 특이사항 이력", style = MaterialTheme.typography.titleMedium, color = SafeBathTheme.OnSecondaryText, modifier = Modifier.padding(bottom = 12.dp))
         Card(modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                // ?대젰 ?꾩씠??1
-                EventLogItem(time = "?댁젣 03:15 AM", message = "?쇨컙 泥대쪟 ?쒓컙 湲몄뼱吏?(12遺?", isWarning = true)
+
+                EventLogItem(time = "어제 03:15 AM", message = "야간 체류 시간이 길어짐 (12분)", isWarning = true)
                 Divider(modifier = Modifier.padding(vertical = 12.dp), color = SafeBathTheme.BackgroundGray)
-                // ?대젰 ?꾩씠??2
-                EventLogItem(time = "紐⑹슂??01:20 AM", message = "?됰쾾???쇨컙 ?붿옣???댁슜", isWarning = false)
+
+                EventLogItem(time = "목요일 01:20 AM", message = "평소보다 야간 화장실 이용 증가", isWarning = false)
                 Divider(modifier = Modifier.padding(vertical = 12.dp), color = SafeBathTheme.BackgroundGray)
-                // ?대젰 ?꾩씠??3
-                EventLogItem(time = "?섏슂??23:45 PM", message = "蹂湲???援ъ뿭 ?쒕룞 媛먯? (?ㅼ썙 異붿젙)", isWarning = false)
+
+                EventLogItem(time = "수요일 23:45 PM", message = "변기 구역 체류 감지 (샤워 후 추정)", isWarning = false)
             }
         }
         Spacer(modifier = Modifier.height(30.dp))
     }
 }
 
-// ?대깽??濡쒓렇 由ъ뒪?몃? ?덉걯寃?洹몃젮二쇰뒗 誘몃땲 而댄룷?뚰듃
+
 @Composable
 fun EventLogItem(time: String, message: String, isWarning: Boolean) {
     Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
@@ -969,29 +968,29 @@ fun EventLogItem(time: String, message: String, isWarning: Boolean) {
     }
 }
 
-// --- 3-3. ?ㅼ젙 ???댁슜 ---
+// Settings tab
 @Composable
 fun SettingsTabContent(x: Float, y: Float, onReset: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("??諛?湲곌린 ?ㅼ젙", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 24.dp))
+        Text("앱 및 기기 설정", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 24.dp))
 
         Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
             colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("湲곌린 ?곕룞 ?뺣낫", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("기기 연동 정보", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("?꾩옱 蹂湲?醫뚰몴 ?ㅼ젙媛?, style = MaterialTheme.typography.labelMedium, color = SafeBathTheme.OnSecondaryText)
+                Text("현재 변기 좌표 설정값", style = MaterialTheme.typography.labelMedium, color = SafeBathTheme.OnSecondaryText)
                 Text("X: ${x}m,  Y: ${y}m", style = MaterialTheme.typography.bodyLarge)
             }
         }
 
-        PrimaryActionButton(label = "?꾩껜 ?ъ꽕??(濡쒓렇?꾩썐)", icon = Icons.Default.Logout, onClick = onReset, modifier = Modifier.fillMaxWidth(0.5f))
+        PrimaryActionButton(label = "전체 초기화 (로그아웃)", icon = Icons.Default.Logout, onClick = onReset, modifier = Modifier.fillMaxWidth(0.5f))
     }
 }
 
-// --- 怨듭슜 踰꾪듉 而댄룷?뚰듃 ---
+
 @Composable
 fun PrimaryActionButton(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier) {
     Card(
