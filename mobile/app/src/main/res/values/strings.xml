@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">SafeBath</string>
+    <string name="dashboard_subtitle">대시보드 상태</string>
+
+    <string name="status_title">현재 상태</string>
+    <string name="anomaly_title">이상 감지</string>
+    <string name="session_title">세션 상태</string>
+    <string name="device_title">디바이스 상태</string>
+</resources>
