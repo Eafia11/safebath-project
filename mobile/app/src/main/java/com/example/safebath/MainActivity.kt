@@ -81,6 +81,26 @@ enum class BathState(val description: String, val color: Color) {
     EMERGENCY("긴급 상황", Color(0xFFE53935))
 }
 
+data class ZoneCalibrationInput(
+    val zoneName: String,
+    val displayName: String,
+    val x: Float,
+    val y: Float,
+    val radius: Float,
+)
+
+private class ZoneCalibrationDraft(
+    val zoneName: String,
+    val displayName: String,
+    x: String,
+    y: String,
+    radius: String,
+) {
+    var x by mutableStateOf(x)
+    var y by mutableStateOf(y)
+    var radius by mutableStateOf(radius)
+}
+
 // 5. ?ㅼ떆媛??곹깭 愿由щ? ?꾪븳 ViewModel
 class BathViewModel : ViewModel() {
     private val repository = SafeBathRepository()
@@ -142,16 +162,26 @@ class BathViewModel : ViewModel() {
         pollingJob = null
     }
 
-    fun completeToiletCalibration(onSuccess: (Float, Float) -> Unit) {
+    fun completeBathroomCalibration(
+        zones: List<ZoneCalibrationInput>,
+        onSuccess: (ZoneCalibrationInput) -> Unit,
+    ) {
         viewModelScope.launch {
             _isLoading.value = true
             runCatching {
                 repository.startCalibration(userId = "mobile_user")
-                repository.setCalibrationStep(zoneName = "toilet")
-                repository.completeCalibration(zoneName = "toilet")
+                zones.forEach { zone ->
+                    repository.setCalibrationStep(zoneName = zone.zoneName)
+                    repository.completeCalibration(
+                        zoneName = zone.zoneName,
+                        centerX = zone.x,
+                        centerY = zone.y,
+                        radius = zone.radius,
+                    )
+                }
             }.onSuccess {
-                _statusMessage.value = "변기 위치 보정이 서버에 저장되었습니다"
-                onSuccess(1.25f, 0.78f)
+                _statusMessage.value = "door / toilet / sink 존 정보가 서버에 저장되었습니다"
+                onSuccess(zones.first { it.zoneName == "toilet" })
             }.onFailure { error ->
                 _statusMessage.value = "보정 요청 실패: ${error.message ?: "알 수 없는 오류"}"
             }
@@ -223,14 +253,19 @@ fun SafeBathApp() {
                     currentScreen = if (isGuardian) SafeBathScreen.DASHBOARD else SafeBathScreen.CALIBRATION
                 })
 
-                SafeBathScreen.CALIBRATION -> ToiletCalibrationScreen(viewModel = bathViewModel, onConfirm = { x, y ->
+                SafeBathScreen.CALIBRATION -> ToiletCalibrationScreen(viewModel = bathViewModel, onConfirm = { toiletZone, allZones ->
                     with(sharedPref.edit()) {
-                        putFloat("toilet_x", x)
-                        putFloat("toilet_y", y)
+                        putFloat("toilet_x", toiletZone.x)
+                        putFloat("toilet_y", toiletZone.y)
+                        allZones.forEach { zone ->
+                            putFloat("${zone.zoneName}_x", zone.x)
+                            putFloat("${zone.zoneName}_y", zone.y)
+                            putFloat("${zone.zoneName}_radius", zone.radius)
+                        }
                         apply()
                     }
-                    savedX = x
-                    savedY = y
+                    savedX = toiletZone.x
+                    savedY = toiletZone.y
                     bathViewModel.refreshStatus()
                     currentScreen = SafeBathScreen.DASHBOARD
                 })
@@ -319,10 +354,20 @@ fun LoginScreen(onLoginSuccess: (Boolean) -> Unit) {
 
 // ============================== [2. 醫뚰몴 ?ㅼ젙 ?붾㈃] ==============================
 @Composable
-fun ToiletCalibrationScreen(viewModel: BathViewModel, onConfirm: (Float, Float) -> Unit) {
+fun ToiletCalibrationScreen(
+    viewModel: BathViewModel,
+    onConfirm: (ZoneCalibrationInput, List<ZoneCalibrationInput>) -> Unit,
+) {
     val isLoading by viewModel.isLoading.collectAsState()
     val statusMessage by viewModel.statusMessage.collectAsState()
-    Column(modifier = Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Top) {
+    var validationMessage by remember { mutableStateOf<String?>(null) }
+    val zoneDrafts = remember { mutableStateListOf<ZoneCalibrationDraft>() }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Top
+    ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("보정", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
             Icon(Icons.Default.Settings, contentDescription = null, tint = Color.LightGray)
@@ -335,19 +380,64 @@ fun ToiletCalibrationScreen(viewModel: BathViewModel, onConfirm: (Float, Float) 
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("현재 단계", style = MaterialTheme.typography.labelLarge, color = SafeBathTheme.PrimaryBlue)
-                Text("변기 위치 보정", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = SafeBathTheme.OnSurfaceText)
-                Text("앱에서 변기 위치를 기준점으로 저장한 뒤 대시보드로 이동합니다.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSecondaryText)
+                Text("욕실 존 위치 보정", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = SafeBathTheme.OnSurfaceText)
+                Text("처음에는 비어 있는 상태로 시작하고, 사용자가 door / toilet / sink 존을 직접 추가해 저장합니다.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSecondaryText)
             }
         }
         Spacer(modifier = Modifier.height(20.dp))
         Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground)) {
             Column(modifier = Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.Start, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(Icons.Default.AccessibilityNew, contentDescription = null, modifier = Modifier.size(60.dp), tint = SafeBathTheme.PrimaryBlue)
-                Text("변기 위치 설정", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = SafeBathTheme.OnSurfaceText)
-                Text("아래 순서대로 진행하면 서버와 앱에 보정 결과를 함께 저장합니다.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSecondaryText)
-                Text("1. 변기 위치에서 사용자 자세를 유지합니다.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSurfaceText)
-                Text("2. 시작 버튼을 눌러 현재 위치를 기준점으로 기록합니다.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSurfaceText)
-                Text("3. 저장이 완료되면 대시보드에서 상태 확인을 이어갑니다.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSurfaceText)
+                Text("욕실 주요 위치 설정", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = SafeBathTheme.OnSurfaceText)
+                Text("존 추가 버튼을 눌러 주요 위치를 하나씩 등록합니다.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSecondaryText)
+                Text("1. door, toilet, sink 중 아직 추가되지 않은 존을 생성합니다.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSurfaceText)
+                Text("2. 각 존의 중심 좌표와 반경(radius)을 입력합니다.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSurfaceText)
+                Text("3. 저장 후 백엔드가 좌표를 존 정보로 사용합니다.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSurfaceText)
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        OutlinedButton(
+            onClick = {
+                createNextZoneDraft(zoneDrafts)?.let { zoneDrafts.add(it) }
+            },
+            enabled = !isLoading && zoneDrafts.size < 3,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(if (zoneDrafts.isEmpty()) "존 추가" else "다음 존 추가")
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        if (zoneDrafts.isEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.AddLocationAlt, contentDescription = null, tint = SafeBathTheme.PrimaryBlue, modifier = Modifier.size(42.dp))
+                    Text("아직 추가된 존이 없습니다.", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("먼저 존 추가 버튼을 눌러 door, toilet, sink 중 필요한 위치를 등록해주세요.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSecondaryText, textAlign = TextAlign.Center)
+                }
+            }
+        } else {
+            zoneDrafts.forEachIndexed { index, draft ->
+                ZoneCalibrationCard(
+                    title = "${draft.zoneName} 존",
+                    xValue = draft.x,
+                    onXChange = { draft.x = it },
+                    yValue = draft.y,
+                    onYChange = { draft.y = it },
+                    radiusValue = draft.radius,
+                    onRadiusChange = { draft.radius = it },
+                )
+                if (index != zoneDrafts.lastIndex) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
@@ -358,12 +448,42 @@ fun ToiletCalibrationScreen(viewModel: BathViewModel, onConfirm: (Float, Float) 
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("저장 상태", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                validationMessage?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = SafeBathTheme.AlertRed)
+                }
                 Text(statusMessage, style = MaterialTheme.typography.bodySmall, color = SafeBathTheme.OnSecondaryText)
             }
         }
         Spacer(modifier = Modifier.weight(1f))
         Button(
-            onClick = { viewModel.completeToiletCalibration(onConfirm) },
+            onClick = {
+                if (zoneDrafts.isEmpty()) {
+                    validationMessage = "최소 1개의 존을 추가해주세요."
+                    return@Button
+                }
+
+                val zones = zoneDrafts.mapNotNull { draft ->
+                    parseZoneCalibration(
+                        zoneName = draft.zoneName,
+                        displayName = draft.displayName,
+                        x = draft.x,
+                        y = draft.y,
+                        radius = draft.radius,
+                    )
+                }
+
+                if (zones.size != zoneDrafts.size) {
+                    validationMessage = "추가한 모든 존의 x, y, radius를 올바른 숫자로 입력해주세요."
+                } else if (zones.none { it.zoneName == "toilet" }) {
+                    validationMessage = "대시보드 연결을 위해 toilet 존은 반드시 추가해주세요."
+                } else {
+                    validationMessage = null
+                    val toiletZone = zones.first { it.zoneName == "toilet" }
+                    viewModel.completeBathroomCalibration(zones) {
+                        onConfirm(toiletZone, zones)
+                    }
+                }
+            },
             enabled = !isLoading,
             modifier = Modifier.fillMaxWidth().height(60.dp),
             colors = ButtonDefaults.buttonColors(containerColor = SafeBathTheme.PrimaryBlue),
@@ -380,16 +500,93 @@ fun ToiletCalibrationScreen(viewModel: BathViewModel, onConfirm: (Float, Float) 
             } else {
                 Icon(Icons.Default.LocationOn, contentDescription = null)
                 Spacer(modifier = Modifier.width(12.dp))
-                Text("현재 위치를 변기로 저장", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("욕실 존 정보를 서버에 저장", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "보정 완료 후 대시보드로 자동 이동합니다.",
+            text = "보정 완료 후 toilet 존 좌표를 기준으로 대시보드로 이동합니다.",
             style = MaterialTheme.typography.bodySmall,
             color = SafeBathTheme.OnSecondaryText,
             textAlign = TextAlign.Center
         )
+    }
+}
+
+@Composable
+private fun ZoneCalibrationCard(
+    title: String,
+    xValue: String,
+    onXChange: (String) -> Unit,
+    yValue: String,
+    onYChange: (String) -> Unit,
+    radiusValue: String,
+    onRadiusChange: (String) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            OutlinedTextField(
+                value = xValue,
+                onValueChange = onXChange,
+                label = { Text("center_x") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = yValue,
+                onValueChange = onYChange,
+                label = { Text("center_y") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = radiusValue,
+                onValueChange = onRadiusChange,
+                label = { Text("radius") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+private fun parseZoneCalibration(
+    zoneName: String,
+    displayName: String,
+    x: String,
+    y: String,
+    radius: String,
+): ZoneCalibrationInput? {
+    val parsedX = x.toFloatOrNull() ?: return null
+    val parsedY = y.toFloatOrNull() ?: return null
+    val parsedRadius = radius.toFloatOrNull() ?: return null
+    if (parsedRadius <= 0f) return null
+    return ZoneCalibrationInput(
+        zoneName = zoneName,
+        displayName = displayName,
+        x = parsedX,
+        y = parsedY,
+        radius = parsedRadius,
+    )
+}
+
+private fun createNextZoneDraft(existingZones: List<ZoneCalibrationDraft>): ZoneCalibrationDraft? {
+    val remainingZone = listOf("door", "toilet", "sink")
+        .firstOrNull { candidate -> existingZones.none { it.zoneName == candidate } }
+        ?: return null
+
+    return when (remainingZone) {
+        "door" -> ZoneCalibrationDraft("door", "출입문", "0.0", "0.0", "0.8")
+        "toilet" -> ZoneCalibrationDraft("toilet", "변기", "1.25", "0.78", "0.7")
+        else -> ZoneCalibrationDraft("sink", "세면대", "2.10", "0.95", "0.7")
     }
 }
 

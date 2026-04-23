@@ -25,6 +25,10 @@ def get_anomalies():
         data={
             "detected": anomaly_state,
             "current_state": status.current_state,
+            "current_zone": status.last_zone,
+            "fall_detected": status.last_fall_detected,
+            "fall_score": status.last_fall_score,
+            "fall_detected_at": status.last_fall_at,
             "waiting_for_response": status.waiting_for_response,
             "latest_prediction": latest_prediction.model_dump() if latest_prediction else None,
             "latest_alert": alerts[-1].model_dump() if alerts else None,

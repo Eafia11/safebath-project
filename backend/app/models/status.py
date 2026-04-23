@@ -17,3 +17,12 @@ class StatusSnapshot(BaseModel):
         None,
         description="Timestamp when abnormal inactivity started.",
     )
+    last_fall_detected: bool = Field(
+        False,
+        description="Whether the latest mmWave sample matched fall rules.",
+    )
+    last_fall_score: float = Field(0.0, description="Rule-based fall confidence score.")
+    last_fall_at: Optional[str] = Field(
+        None,
+        description="Timestamp of the latest detected fall event.",
+    )

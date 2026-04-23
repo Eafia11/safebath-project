@@ -28,7 +28,10 @@ data class CalibrationStartRequest(
 )
 
 data class CalibrationZoneRequest(
-    val zone_name: String
+    val zone_name: String,
+    val center_x: Float? = null,
+    val center_y: Float? = null,
+    val radius: Float? = null,
 )
 
 data class CalibrationStatusDto(

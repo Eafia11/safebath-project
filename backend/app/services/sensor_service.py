@@ -3,9 +3,12 @@ from typing import Any, Dict
 
 from ..models.sensor import DoorSensorRequest, MmWaveSensorRequest
 from .anomaly_service import anomaly_service
+from .fall_service import fall_service
 from .feature_service import feature_service
 from .log_service import log_service
+from .session_service import session_service
 from .state_service import state_service
+from .zone_service import zone_service
 
 
 class SensorService:
@@ -20,15 +23,35 @@ class SensorService:
 
     def receive_mmwave(self, data: MmWaveSensorRequest) -> Dict[str, Any]:
         timestamp = datetime.utcnow().isoformat()
-        payload = data.model_dump()
+        resolved_zone = zone_service.resolve_zone(data.x, data.y, data.zone)
+        normalized = data.model_copy(update={"zone": resolved_zone})
+        payload = normalized.model_dump()
 
-        feature_vector = feature_service.build_mmwave_feature_vector(data)
+        feature_vector = feature_service.build_mmwave_feature_vector(normalized)
         status = state_service.process_mmwave_event(
-            detected=data.detected,
-            zone=data.zone,
-            motion_level=data.motion_level,
-            still_time=data.still_time,
+            detected=normalized.detected,
+            zone=normalized.zone,
+            motion_level=normalized.motion_level,
+            still_time=normalized.still_time,
         )
+        active_session = session_service.record_presence(
+            detected=normalized.detected,
+            zone=normalized.zone,
+        )
+        fall_result = fall_service.evaluate(
+            detected=normalized.detected,
+            x=normalized.x,
+            y=normalized.y,
+            z=normalized.z,
+            velocity=normalized.velocity,
+            still_time=normalized.still_time,
+        )
+        if fall_result["detected"]:
+            status = state_service.mark_fall_detected(
+                score=fall_result["score"],
+                reason=fall_result["reason"],
+            )
+
         anomaly_result = anomaly_service.analyze_mmwave(
             feature_vector=feature_vector,
             status=status,
@@ -41,8 +64,10 @@ class SensorService:
             "sensor": "mmwave",
             "payload": payload,
             "feature_vector": feature_vector.model_dump(),
+            "fall_detection": fall_result,
             "anomaly": anomaly_result.model_dump(),
             "status": status.model_dump(),
+            "session": active_session.model_dump() if active_session else None,
         }
 
         self._remember_event("mmwave", result)
@@ -51,7 +76,9 @@ class SensorService:
             message="mmWave event processed",
             data={
                 "sensor": "mmwave",
+                "resolved_zone": resolved_zone,
                 "anomaly_detected": anomaly_result.detected,
+                "fall_detected": fall_result["detected"],
                 "current_state": status.current_state,
                 "anomaly_reason": anomaly_result.reason,
             },
@@ -62,6 +89,7 @@ class SensorService:
         timestamp = datetime.utcnow().isoformat()
         payload = data.model_dump()
         status = state_service.process_door_event(door_state=data.door_state)
+        completed_session = session_service.end_session() if data.door_state == "closed" else None
 
         result = {
             "timestamp": timestamp,
@@ -69,6 +97,7 @@ class SensorService:
             "sensor": "door",
             "payload": payload,
             "status": status.model_dump(),
+            "session": completed_session.model_dump() if completed_session else None,
         }
 
         self._remember_event("door", result)

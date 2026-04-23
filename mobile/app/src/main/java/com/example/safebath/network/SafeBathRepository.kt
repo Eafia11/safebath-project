@@ -15,7 +15,19 @@ class SafeBathRepository(
         return api.setCalibrationStep(CalibrationZoneRequest(zone_name = zoneName))
     }
 
-    suspend fun completeCalibration(zoneName: String): ApiResponse<CalibrationStatusDto> {
-        return api.completeCalibrationZone(CalibrationZoneRequest(zone_name = zoneName))
+    suspend fun completeCalibration(
+        zoneName: String,
+        centerX: Float,
+        centerY: Float,
+        radius: Float,
+    ): ApiResponse<CalibrationStatusDto> {
+        return api.completeCalibrationZone(
+            CalibrationZoneRequest(
+                zone_name = zoneName,
+                center_x = centerX,
+                center_y = centerY,
+                radius = radius,
+            )
+        )
     }
 }
