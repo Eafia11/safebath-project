@@ -1,18 +1,37 @@
-from pydantic import BaseModel, Field
 from typing import Literal, Optional
+
+from pydantic import BaseModel, Field
 
 
 class ButtonRequest(BaseModel):
     button_type: Literal["confirm_safe", "emergency_call", "reset"] = Field(
         ...,
-        description="버튼 입력 종류"
+        description="Button input type.",
     )
 
 
 class SpeakerRequest(BaseModel):
-    message: str = Field(..., description="스피커 출력 메시지")
+    message: str = Field(..., description="Message to be played on the speaker.")
     alert_level: Literal["info", "warning", "danger"] = Field(
         ...,
-        description="안내/경고 수준"
+        description="Speaker alert severity.",
     )
-    repeat: Optional[int] = Field(1, description="반복 횟수")
+    repeat: Optional[int] = Field(1, ge=1, description="Number of times to repeat playback.")
+
+
+class HeartbeatRequest(BaseModel):
+    device_name: Literal["mmwave", "door_sensor", "button", "speaker"] = Field(
+        ...,
+        description="Device sending the heartbeat.",
+    )
+    status: Literal["online", "offline", "degraded"] = Field(
+        default="online",
+        description="Reported device connectivity status.",
+    )
+
+
+class DeviceState(BaseModel):
+    device_name: str = Field(..., description="Device identifier.")
+    status: str = Field(..., description="Current device status.")
+    last_seen_at: Optional[str] = Field(None, description="Last heartbeat timestamp.")
+    last_payload: Optional[dict] = Field(None, description="Most recent device payload.")

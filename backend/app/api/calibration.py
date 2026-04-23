@@ -1,12 +1,13 @@
 from fastapi import APIRouter
-from app.models.common import success_response
-from app.models.response import CommonResponse
-from app.models.calibration import (
+
+from ..models.calibration import (
     CalibrationStartRequest,
     CalibrationStepRequest,
     CalibrationCompleteRequest,
 )
-from app.services.calibration_service import calibration_service
+from ..models.common import success_response
+from ..models.response import CommonResponse
+from ..services.calibration_service import calibration_service
 
 router = APIRouter(prefix="/calibration", tags=["calibration"])
 

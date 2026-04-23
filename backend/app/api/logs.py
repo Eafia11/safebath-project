@@ -1,7 +1,8 @@
 from fastapi import APIRouter
-from app.models.common import success_response
-from app.models.response import CommonResponse
-from app.services.log_service import log_service
+
+from ..models.common import success_response
+from ..models.response import CommonResponse
+from ..services.log_service import log_service
 
 router = APIRouter(tags=["logs"])
 

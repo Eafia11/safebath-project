@@ -1,6 +1,7 @@
 from fastapi import APIRouter
-from app.models.response import CommonResponse
-from app.models.common import success_response
+
+from ..models.common import success_response
+from ..models.response import CommonResponse
 
 router = APIRouter(tags=["health"])
 

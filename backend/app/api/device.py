@@ -1,10 +1,11 @@
-from fastapi import APIRouter
 from datetime import datetime
-from app.models.common import success_response
-from app.models.response import CommonResponse
-from app.models.device import ButtonRequest, SpeakerRequest
-from app.services.log_service import log_service
-from app.services.state_service import state_service
+
+from fastapi import APIRouter
+
+from ..models.common import success_response
+from ..models.device import ButtonRequest, HeartbeatRequest, SpeakerRequest
+from ..models.response import CommonResponse
+from ..services.device_service import device_service
 
 router = APIRouter(prefix="/device", tags=["device"])
 
@@ -12,33 +13,36 @@ router = APIRouter(prefix="/device", tags=["device"])
 @router.post("/button", response_model=CommonResponse)
 def receive_button(data: ButtonRequest):
     now = datetime.utcnow().isoformat()
-
-    status = state_service.process_button_event(
-        button_type=data.button_type
-    )
-
+    result = device_service.process_button(data)
     return success_response(
-        message="버튼 입력 처리 완료",
-        data={
-            "timestamp": now,
-            "received": True,
-            "device": "button",
-            "payload": data.model_dump(),
-            "status": status,
-        }
+        message="Button input processed successfully.",
+        data={**result, "api_received_at": now},
     )
 
 
 @router.post("/speaker", response_model=CommonResponse)
 def trigger_speaker(data: SpeakerRequest):
     now = datetime.utcnow().isoformat()
-
+    result = device_service.trigger_speaker(data)
     return success_response(
-        message="스피커 출력 요청 처리 완료",
-        data={
-            "timestamp": now,
-            "requested": True,
-            "device": "speaker",
-            "payload": data.model_dump(),
-        }
+        message="Speaker request processed successfully.",
+        data={**result, "api_received_at": now},
+    )
+
+
+@router.post("/heartbeat", response_model=CommonResponse)
+def receive_heartbeat(data: HeartbeatRequest):
+    now = datetime.utcnow().isoformat()
+    result = device_service.receive_heartbeat(data)
+    return success_response(
+        message="Device heartbeat received successfully.",
+        data={**result, "api_received_at": now},
+    )
+
+
+@router.get("/status", response_model=CommonResponse)
+def get_device_status():
+    return success_response(
+        message="Device status retrieved successfully.",
+        data={"devices": device_service.get_devices()},
     )
