@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 *.iml
 .gradle
 /local.properties
@@ -13,3 +14,24 @@
 .externalNativeBuild
 .cxx
 local.properties
+=======
+# ===== Python =====
+venv/
+__pycache__/
+*.pyc
+.env
+
+# ===== Android =====
+.gradle/
+local.properties
+*.iml
+.idea/
+build/
+
+# ===== VS Code =====
+.vscode/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+>>>>>>> e1394c4221058dabc7a5a6ee0760ab049419288a
