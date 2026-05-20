@@ -1,0 +1,23 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: safebath-backend:latest
+    container_name: safebath-backend
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8000
+      DEBUG: "False"
+      DATA_DIR: /app/data
+      DATABASE_PATH: /app/data/safebath.db
+      MODEL_PATH: "${MODEL_PATH:-/app/data/processed/isolation_forest.joblib}"
+      API_KEY: "${API_KEY:-}"
+    volumes:
+      - safebath-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  safebath-data:
