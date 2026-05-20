@@ -19,9 +19,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// 💡 화면 상태를 관리하는 Enum (기존에 정의하셨던 것)
-enum class SafeBathScreen { LOGIN, CALIBRATION, DASHBOARD }
-
 @Composable
 fun SafeBathApp() {
     val context = LocalContext.current

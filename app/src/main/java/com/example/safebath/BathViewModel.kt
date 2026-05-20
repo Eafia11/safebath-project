@@ -28,3 +28,13 @@ class BathViewModel : ViewModel() {
         _currentState.value = newState
     }
 }
+
+// 특이사항 1건에 대한 데이터 구조
+data class BathEventLog(
+    val time: String,
+    val message: String,
+    val isWarning: Boolean
+)
+
+// 💡 화면 상태를 관리하는 Enum (기존에 정의하셨던 것)
+enum class SafeBathScreen { LOGIN, CALIBRATION, DASHBOARD }
