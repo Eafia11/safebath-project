@@ -2,6 +2,10 @@ from fastapi import FastAPI
 
 from .api import admin, alerts, anomalies, calibration, device, health, logs, sensor, sessions, status
 from .core.config import DEBUG, HOST, PORT
+from .db.init_db import init_db
+
+
+init_db()
 
 
 app = FastAPI(

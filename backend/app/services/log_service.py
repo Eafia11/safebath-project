@@ -1,4 +1,4 @@
-from datetime import datetime
+from ..utils.time_utils import utc_now_iso
 
 
 class LogService:
@@ -7,7 +7,7 @@ class LogService:
 
     def add_log(self, log_type: str, message: str, data=None, level: str = "info"):
         log_entry = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": utc_now_iso(),
             "type": log_type,
             "level": level,
             "message": message,

@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from ..models.alert import AlertEvent
+from ..repositories.alert_repository import alert_repository
 
 
 class AlertService:
@@ -26,6 +27,7 @@ class AlertService:
             status="created",
         )
         self.alerts.append(alert)
+        alert_repository.save(alert)
         return alert
 
     def get_alerts(self) -> list[AlertEvent]:

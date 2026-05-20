@@ -13,6 +13,10 @@ class StatusSnapshot(BaseModel):
     last_reason: str = Field(..., description="Reason for current state.")
     last_updated: Optional[str] = Field(None, description="Last state update timestamp.")
     waiting_for_response: bool = Field(..., description="Whether response confirmation is pending.")
+    pending_response_type: Optional[str] = Field(
+        None,
+        description="Type of pending user response, such as inactivity or fall.",
+    )
     abnormal_start_time: Optional[str] = Field(
         None,
         description="Timestamp when abnormal inactivity started.",

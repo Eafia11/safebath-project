@@ -2,6 +2,8 @@ from datetime import datetime
 from typing import Dict
 
 from ..models.device import ButtonRequest, DeviceState, HeartbeatRequest, SpeakerRequest
+from ..repositories.device_repository import device_repository
+from ..repositories.status_repository import status_repository
 from .log_service import log_service
 from .state_service import state_service
 
@@ -14,6 +16,8 @@ class DeviceService:
             "button": DeviceState(device_name="button", status="online"),
             "speaker": DeviceState(device_name="speaker", status="online"),
         }
+        for device_state in self.devices.values():
+            device_repository.save(device_state)
 
     def _update_device(self, device_name: str, status: str, payload: dict | None = None) -> DeviceState:
         device_state = self.devices.get(device_name) or DeviceState(
@@ -24,6 +28,7 @@ class DeviceService:
         device_state.last_seen_at = datetime.utcnow().isoformat()
         device_state.last_payload = payload
         self.devices[device_name] = device_state
+        device_repository.save(device_state)
         return device_state
 
     def process_button(self, data: ButtonRequest) -> dict:
@@ -33,6 +38,7 @@ class DeviceService:
             payload=data.model_dump(),
         )
         status = state_service.process_button_event(button_type=data.button_type)
+        status_repository.save(status)
 
         log_service.add_log(
             log_type="device_service",

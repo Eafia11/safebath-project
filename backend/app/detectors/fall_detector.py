@@ -1,9 +1,9 @@
 from datetime import datetime
-from math import sqrt
 from typing import Any, Dict, Optional
 
+from ..utils.math_utils import distance_3d
 
-class FallService:
+class FallDetector:
     def __init__(self):
         self.last_sample: Optional[Dict[str, Any]] = None
 
@@ -99,8 +99,10 @@ class FallService:
             return None
 
         elapsed = max((now - previous_timestamp).total_seconds(), 0.001)
-        distance = sqrt((x - previous_x) ** 2 + (y - previous_y) ** 2 + (z - previous_z) ** 2)
+        distance = distance_3d(x, y, z, previous_x, previous_y, previous_z)
+        if distance is None:
+            return None
         return distance / elapsed
 
 
-fall_service = FallService()
+fall_detector = FallDetector()

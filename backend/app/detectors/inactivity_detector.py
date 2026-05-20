@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 
-class RuleBasedService:
+class InactivityDetector:
     def evaluate_response_timeout(
         self,
         waiting_for_response: bool,
@@ -81,4 +81,4 @@ class RuleBasedService:
         }
 
 
-rule_based_service = RuleBasedService()
+inactivity_detector = InactivityDetector()

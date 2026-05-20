@@ -1,10 +1,10 @@
 from datetime import datetime
 from typing import Optional
 
+from ..detectors.inactivity_detector import inactivity_detector
 from ..models.status import StatusSnapshot
 from .alert_service import alert_service
 from .log_service import log_service
-from .rule_based_service import rule_based_service
 
 
 class StateService:
@@ -19,9 +19,11 @@ class StateService:
         self.last_updated: Optional[str] = None
         self.abnormal_start_time: Optional[datetime] = None
         self.waiting_for_response = False
+        self.pending_response_type: Optional[str] = None
         self.last_fall_detected = False
         self.last_fall_score = 0.0
         self.last_fall_at: Optional[str] = None
+        self.pending_fall_reason: Optional[str] = None
 
     def _update_state(self, new_state: str, reason: str):
         previous_state = self.current_state
@@ -76,17 +78,30 @@ class StateService:
         self.last_motion_level = motion_level
         self.last_still_time = still_time
 
-        timeout_rule = rule_based_service.evaluate_response_timeout(
+        timeout_rule = inactivity_detector.evaluate_response_timeout(
             waiting_for_response=self.waiting_for_response,
             abnormal_start_time=self.abnormal_start_time,
             timeout_seconds=10,
         )
         if timeout_rule["triggered"]:
             self.waiting_for_response = False
-            self._update_state("EMERGENCY", timeout_rule["reason"])
+            response_type = self.pending_response_type or "inactivity"
+            self.pending_response_type = None
+            alert_type = "fall" if response_type == "fall" else "emergency"
+            alert_message = (
+                "No user response after possible fall; fall emergency alert created."
+                if response_type == "fall"
+                else "No user response after abnormal activity; emergency alert created."
+            )
+            reason = (
+                "No user response after possible fall"
+                if response_type == "fall"
+                else timeout_rule["reason"]
+            )
+            self._update_state("EMERGENCY", reason)
             created_alert = alert_service.create_alert(
-                alert_type="emergency",
-                message="No user response after abnormal activity; emergency alert created.",
+                alert_type=alert_type,
+                message=alert_message,
                 level="danger",
                 target="guardian",
                 data={
@@ -94,18 +109,21 @@ class StateService:
                     "current_state": self.current_state,
                     "last_zone": self.last_zone,
                     "last_still_time": self.last_still_time,
+                    "fall_score": self.last_fall_score if response_type == "fall" else None,
                     "reason": self.last_reason,
                 },
             )
             log_service.add_log(
                 log_type="alert",
-                message="Emergency alert created after no response",
+                message="Fall alert created after no response"
+                if response_type == "fall"
+                else "Emergency alert created after no response",
                 data={"alert": created_alert.model_dump()},
                 level="warning",
             )
             return self.get_status()
 
-        mmwave_rule = rule_based_service.evaluate_mmwave_rules(
+        mmwave_rule = inactivity_detector.evaluate_mmwave_rules(
             detected=detected,
             zone=zone,
             motion_level=motion_level,
@@ -119,6 +137,7 @@ class StateService:
         if mmwave_rule["rule_type"] == "prolonged_inactivity":
             self.abnormal_start_time = datetime.utcnow()
             self.waiting_for_response = True
+            self.pending_response_type = "inactivity"
             log_service.add_log(
                 log_type="alert",
                 message="Abnormal inactivity detected and speaker warning triggered",
@@ -127,30 +146,23 @@ class StateService:
             )
         return self.get_status()
 
-    def mark_fall_detected(self, score: float, reason: str) -> StatusSnapshot:
+    def mark_possible_fall_detected(self, score: float, reason: str) -> StatusSnapshot:
         self.last_fall_detected = True
         self.last_fall_score = score
         self.last_fall_at = datetime.utcnow().isoformat()
-        self.waiting_for_response = False
-        self.abnormal_start_time = None
-        self._update_state("EMERGENCY", reason)
-
-        created_alert = alert_service.create_alert(
-            alert_type="fall",
-            message="Possible fall detected from mmWave sensor data.",
-            level="danger",
-            target="guardian",
-            data={
-                "fall_score": score,
-                "current_state": self.current_state,
-                "last_zone": self.last_zone,
-                "reason": reason,
-            },
-        )
+        self.pending_fall_reason = reason
+        self.waiting_for_response = True
+        self.pending_response_type = "fall"
+        self.abnormal_start_time = datetime.utcnow()
+        self._update_state("ABNORMAL", "Possible fall detected; waiting for user response")
         log_service.add_log(
             log_type="alert",
-            message="Fall alert created from mmWave rule evaluation",
-            data={"alert": created_alert.model_dump()},
+            message="Possible fall detected and speaker warning triggered",
+            data={
+                "fall_score": score,
+                "reason": reason,
+                "action": "speaker_triggered",
+            },
             level="warning",
         )
         return self.get_status()
@@ -165,11 +177,15 @@ class StateService:
         if button_type == "confirm_safe":
             self.waiting_for_response = False
             self.abnormal_start_time = None
+            self.pending_response_type = None
+            self.pending_fall_reason = None
             self.last_fall_detected = False
             self._update_state("ACTIVE", "User confirmed safety")
         elif button_type == "emergency_call":
             self.waiting_for_response = False
             self.abnormal_start_time = None
+            self.pending_response_type = None
+            self.pending_fall_reason = None
             self._update_state("EMERGENCY", "User triggered emergency call")
             created_alert = alert_service.create_alert(
                 alert_type="emergency",
@@ -190,6 +206,8 @@ class StateService:
         elif button_type == "reset":
             self.waiting_for_response = False
             self.abnormal_start_time = None
+            self.pending_response_type = None
+            self.pending_fall_reason = None
             self.last_fall_detected = False
             self.last_fall_score = 0.0
             self.last_fall_at = None
@@ -208,6 +226,7 @@ class StateService:
             last_reason=self.last_reason,
             last_updated=self.last_updated,
             waiting_for_response=self.waiting_for_response,
+            pending_response_type=self.pending_response_type,
             abnormal_start_time=self.abnormal_start_time.isoformat()
             if self.abnormal_start_time
             else None,

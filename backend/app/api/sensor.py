@@ -1,13 +1,14 @@
 from datetime import datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from ..core.security import verify_api_key
 from ..models.common import success_response
 from ..models.response import CommonResponse
 from ..models.sensor import DoorSensorRequest, MmWaveSensorRequest
 from ..services.sensor_service import sensor_service
 
-router = APIRouter(prefix="/sensor", tags=["sensor"])
+router = APIRouter(prefix="/sensor", tags=["sensor"], dependencies=[Depends(verify_api_key)])
 
 
 @router.post("/mmwave", response_model=CommonResponse)

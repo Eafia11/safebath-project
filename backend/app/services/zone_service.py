@@ -1,6 +1,6 @@
-from math import hypot
 from typing import Optional
 
+from ..utils.math_utils import distance_2d
 from .calibration_service import calibration_service
 
 
@@ -31,7 +31,7 @@ class ZoneService:
             if center_x is None or center_y is None or radius is None:
                 continue
 
-            distance = hypot(x - center_x, y - center_y)
+            distance = distance_2d(x, y, center_x, center_y)
             if distance <= radius and (best_distance is None or distance < best_distance):
                 best_zone = zone_name
                 best_distance = distance

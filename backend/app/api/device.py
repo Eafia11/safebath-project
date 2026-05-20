@@ -1,13 +1,15 @@
 from datetime import datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from ..models.common import success_response
+from ..core.security import verify_api_key
 from ..models.common import success_response
 from ..models.device import ButtonRequest, HeartbeatRequest, SpeakerRequest
 from ..models.response import CommonResponse
 from ..services.device_service import device_service
 
-router = APIRouter(prefix="/device", tags=["device"])
+router = APIRouter(prefix="/device", tags=["device"], dependencies=[Depends(verify_api_key)])
 
 
 @router.post("/button", response_model=CommonResponse)

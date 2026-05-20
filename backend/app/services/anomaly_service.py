@@ -1,11 +1,10 @@
-from datetime import datetime
-
+from ..detectors.anomaly_detector import anomaly_detector
 from ..models.anomaly import AnomalyPrediction
 from ..models.feature import FeatureVector
 from ..models.status import StatusSnapshot
+from ..repositories.anomaly_repository import anomaly_repository
 from .alert_service import alert_service
 from .log_service import log_service
-from .model_service import model_service
 
 
 class AnomalyService:
@@ -18,38 +17,22 @@ class AnomalyService:
         status: StatusSnapshot,
         source: str = "mmwave",
     ) -> AnomalyPrediction:
-        score = model_service.score(feature_vector)
-        threshold = model_service.threshold
-        detected = score >= threshold or status.current_state in {"ABNORMAL", "EMERGENCY"}
-
-        if status.current_state == "EMERGENCY":
-            reason = "Emergency state is active."
-        elif status.current_state == "ABNORMAL":
-            reason = "Rule-based abnormal state is active."
-        elif score >= threshold:
-            reason = "Score exceeded threshold."
-        else:
-            reason = "Score is within normal range."
-
-        prediction = AnomalyPrediction(
-            detected=detected,
-            score=round(score, 4),
-            threshold=round(threshold, 4),
-            reason=reason,
-            timestamp=datetime.utcnow().isoformat(),
+        prediction = anomaly_detector.detect(
+            feature_vector=feature_vector,
+            status=status,
             source=source,
-            current_state=status.current_state,
         )
         self.latest_prediction = prediction
+        anomaly_repository.save(prediction)
 
         log_service.add_log(
             log_type="anomaly_service",
             message="Anomaly analysis completed",
             data=prediction.model_dump(),
-            level="warning" if detected else "info",
+            level="warning" if prediction.detected else "info",
         )
 
-        if detected and status.current_state not in {"ABNORMAL", "EMERGENCY"}:
+        if prediction.detected and status.current_state not in {"ABNORMAL", "EMERGENCY"}:
             created_alert = alert_service.create_alert(
                 alert_type="anomaly",
                 message="Anomalous behavior detected from mmWave data.",

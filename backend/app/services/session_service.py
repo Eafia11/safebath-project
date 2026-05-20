@@ -1,8 +1,9 @@
-from datetime import datetime
 from typing import Dict, Optional
 from uuid import uuid4
 
 from ..models.session import SessionRecord
+from ..repositories.session_repository import session_repository
+from ..utils.time_utils import parse_iso_datetime, seconds_between, utc_now, utc_now_iso
 
 
 class SessionService:
@@ -13,11 +14,12 @@ class SessionService:
     def start_session(self) -> SessionRecord:
         session = SessionRecord(
             session_id=str(uuid4()),
-            started_at=datetime.utcnow().isoformat(),
+            started_at=utc_now_iso(),
             event_count=1,
         )
         self.sessions[session.session_id] = session
         self.active_session_id = session.session_id
+        session_repository.save(session)
         return session
 
     def ensure_session(self, zone: Optional[str] = None) -> SessionRecord:
@@ -25,17 +27,19 @@ class SessionService:
         if active_session:
             active_session.last_zone = zone or active_session.last_zone
             active_session.event_count += 1
+            session_repository.save(active_session)
             return active_session
 
         session = SessionRecord(
             session_id=str(uuid4()),
-            started_at=datetime.utcnow().isoformat(),
+            started_at=utc_now_iso(),
             start_zone=zone,
             last_zone=zone,
             event_count=1,
         )
         self.sessions[session.session_id] = session
         self.active_session_id = session.session_id
+        session_repository.save(session)
         return session
 
     def end_session(self) -> Optional[SessionRecord]:
@@ -43,12 +47,14 @@ class SessionService:
             return None
 
         session = self.sessions[self.active_session_id]
-        ended_at = datetime.utcnow()
+        ended_at = utc_now()
         session.ended_at = ended_at.isoformat()
         session.state = "COMPLETED"
-        started_at = datetime.fromisoformat(session.started_at)
-        session.duration_seconds = round((ended_at - started_at).total_seconds(), 3)
+        started_at = parse_iso_datetime(session.started_at)
+        if started_at:
+            session.duration_seconds = seconds_between(started_at, ended_at)
         self.active_session_id = None
+        session_repository.save(session)
         return session
 
     def record_presence(self, detected: bool, zone: Optional[str] = None) -> Optional[SessionRecord]:
