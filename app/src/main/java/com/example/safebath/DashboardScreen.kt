@@ -66,15 +66,34 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.filled.AccessibilityNew
+import androidx.compose.material.icons.filled.Bathtub
+import androidx.compose.material.icons.filled.EventSeat
+import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material3.*
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.Refresh
 
 
 // ============================== [3. 대시보드 (하단 탭 뼈대)] ==============================
 @Composable
-fun UsagePatternDashboard(x: Float, y: Float, isGuardian: Boolean, viewModel: BathViewModel, onReset: () -> Unit) {
+fun UsagePatternDashboard(
+    // 💡 1. 기존 x, y 대신 MainActivity가 던져주는 '진짜' 바구니(Map)를 입구에서 받습니다.
+    savedCoordinates: Map<CalibrationZone, Pair<Float, Float>>,
+    isGuardian: Boolean,
+    viewModel: BathViewModel,
+    onRecalibrate: () -> Unit,
+    onLogout: () -> Unit
+) {
     val context = LocalContext.current
     var isEmergencyDetected by remember { mutableStateOf(false) }
     var playingRingtone by remember { mutableStateOf<Ringtone?>(null) }
     var selectedTab by remember { mutableIntStateOf(0) }
+
+    // 💡 2. (이전에 이곳에 추가하셨던 임시 savedCoordinates 변수와 LaunchedEffect는 삭제했습니다.)
+    // 이제 파라미터로 넘어온 진짜 savedCoordinates를 바로 사용합니다.
 
     // --- 긴급 알림 팝업 (모든 탭에서 공통 동작) ---
     if (isEmergencyDetected) {
@@ -137,7 +156,11 @@ fun UsagePatternDashboard(x: Float, y: Float, isGuardian: Boolean, viewModel: Ba
             when (selectedTab) {
                 0 -> HomeTabContent(isGuardian, viewModel) { isEmergencyDetected = true }
                 1 -> ReportTabContent()
-                2 -> SettingsTabContent(x, y, onReset)
+                2 -> SettingsTabContent(
+                    savedCoordinates = savedCoordinates,
+                    onRecalibrate = onRecalibrate, // ➡️ 공간 재설정 기능 연결
+                    onLogout = onLogout            // ➡️ 로그아웃 기능 연결
+                )
             }
         }
     }
@@ -350,22 +373,118 @@ fun ReportTabContent() {
 
 // --- 3-3. 설정 탭 내용 ---
 @Composable
-fun SettingsTabContent(x: Float, y: Float, onReset: () -> Unit) {
+fun SettingsTabContent(
+    // 💡 x, y 대신 구역별 좌표가 담긴 Map 구조를 통째로 전달받습니다.
+    savedCoordinates: Map<CalibrationZone, Pair<Float, Float>>,
+    onRecalibrate: () -> Unit,
+    onLogout: () -> Unit
+) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("앱 및 기기 설정", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 24.dp))
+        Text(
+            text = "앱 및 기기 설정",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 24.dp)
+        )
 
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+        // 💡 1. 기기 연동 정보 섹션 카드
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
             colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("기기 연동 정보", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "기기 연동 정보 (mmWave 센서)",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "등록된 구역별 좌표 설정값",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = SafeBathTheme.OnSecondaryText
+                )
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("현재 변기 좌표 설정값", style = MaterialTheme.typography.labelMedium, color = SafeBathTheme.OnSecondaryText)
-                Text("X: ${x}m,  Y: ${y}m", style = MaterialTheme.typography.bodyLarge)
+
+                // 💡 2. Map에 저장된 구역들을 하나씩 꺼내서 좌표 리스트를 동적으로 렌더링합니다.
+                if (savedCoordinates.isEmpty()) {
+                    Text(
+                        text = "등록된 구역 좌표 정보가 없습니다.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = SafeBathTheme.OnSecondaryText,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                } else {
+                    savedCoordinates.forEach { (zone, coord) ->
+                        // 구역별 알맞은 아이콘 매핑
+                        val icon = when (zone) {
+                            CalibrationZone.TOILET -> Icons.Default.EventSeat
+                            CalibrationZone.SINK -> Icons.Default.AccessibilityNew
+                            CalibrationZone.BATHTUB -> Icons.Default.Bathtub
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    tint = SafeBathTheme.PrimaryBlue,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                // "(필수)" 텍스트가 노출되지 않도록 깔끔하게 치환
+                                Text(
+                                    text = zone.title.replace("(필수)", ""),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            // 소수점 둘째 자리까지 제한해서 출력
+                            Text(
+                                text = "X: ${String.format("%.2f", coord.first)}m, Y: ${String.format("%.2f", coord.second)}m",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
             }
         }
 
-        PrimaryActionButton(label = "전체 재설정 (로그아웃)", icon = Icons.Default.Logout, onClick = onReset, modifier = Modifier.fillMaxWidth(0.5f))
+        Spacer(modifier = Modifier.weight(1f))
+
+        // 💡 [신규 추가] 하단 버튼 2개 세트
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // 1. 공간 재설정 버튼 (로그인은 유지)
+            Button(
+                onClick = onRecalibrate,
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = SafeBathTheme.PrimaryBlue),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("전체 공간 재설정 (좌표 다시 찍기)", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+
+            // 2. 로그아웃 버튼 (계정 정보 초기화)
+            OutlinedButton(
+                onClick = onLogout,
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Icon(Icons.Default.Logout, contentDescription = null, tint = Color.Gray)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("로그아웃", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+            }
+        }
     }
 }

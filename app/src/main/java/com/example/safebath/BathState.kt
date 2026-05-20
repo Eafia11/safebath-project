@@ -12,8 +12,6 @@ object SafeBathTheme {
     val CardBackground = Color.White
     val AlertRed = Color(0xFFE53935)
 }
-// 앱 화면 단위 상태
-enum class SafeBathScreen { LOGIN, CALIBRATION, DASHBOARD }
 
 // 욕실 내부 실시간 상태 정의 (mmWave 연동용)
 enum class BathState(val description: String, val color: Color) {

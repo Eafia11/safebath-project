@@ -51,6 +51,9 @@ fun LoginScreen(onLoginSuccess: (Boolean) -> Unit) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isGuardianChecked by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") } // 로그인 실패 시 표시할 에러 메시지
+
+    // 로그인 화면 레이아웃
 
     Column(
         modifier = Modifier.fillMaxSize().padding(30.dp),

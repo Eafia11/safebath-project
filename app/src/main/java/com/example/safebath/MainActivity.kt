@@ -1,44 +1,16 @@
 package com.example.safebath
 
 import android.content.Context
-import android.media.Ringtone
-import android.media.RingtoneManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.TextStyle
+
+// (기타 import 문들은 기존과 동일하게 유지해 주세요)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,6 +18,9 @@ class MainActivity : ComponentActivity() {
         setContent { SafeBathApp() }
     }
 }
+
+// 💡 화면 상태를 관리하는 Enum (기존에 정의하셨던 것)
+enum class SafeBathScreen { LOGIN, CALIBRATION, DASHBOARD }
 
 @Composable
 fun SafeBathApp() {
@@ -56,19 +31,28 @@ fun SafeBathApp() {
     val bathViewModel = remember { BathViewModel() }
 
     var currentScreen by remember { mutableStateOf(SafeBathScreen.LOGIN) }
-    var savedX by remember { mutableFloatStateOf(0.0f) }
-    var savedY by remember { mutableFloatStateOf(0.0f) }
     var isGuardianMode by remember { mutableStateOf(false) }
 
+    // 💡 [핵심 변경] 단일 x, y 변수를 지우고 Map 상태 변수 하나로 통합!
+    val savedCoordinates = remember { mutableStateMapOf<CalibrationZone, Pair<Float, Float>>() }
+
+    // 앱 시작 시 저장된 데이터 불러오기
     LaunchedEffect(Unit) {
         val isLoggedIn = sharedPref.getBoolean("is_logged_in", false)
         isGuardianMode = sharedPref.getBoolean("is_guardian", false)
+
         if (isLoggedIn) {
-            val x = sharedPref.getFloat("toilet_x", -1f)
-            val y = sharedPref.getFloat("toilet_y", -1f)
-            if (x != -1f && y != -1f) {
-                savedX = x
-                savedY = y
+            // 💡 [핵심 변경] Enum(변기, 세면대, 욕조)을 돌면서 기기에 저장된 좌표가 있는지 싹 다 꺼내옵니다.
+            CalibrationZone.values().forEach { zone ->
+                val x = sharedPref.getFloat("coord_${zone.name}_x", -1f)
+                val y = sharedPref.getFloat("coord_${zone.name}_y", -1f)
+                if (x != -1f && y != -1f) {
+                    savedCoordinates[zone] = Pair(x, y) // 불러온 좌표를 맵에 채워넣음
+                }
+            }
+
+            // 필수 구역인 '변기' 좌표가 Map 안에 무사히 들어있다면 대시보드로 이동
+            if (savedCoordinates.containsKey(CalibrationZone.TOILET)) {
                 currentScreen = SafeBathScreen.DASHBOARD
             } else {
                 currentScreen = SafeBathScreen.CALIBRATION
@@ -91,33 +75,52 @@ fun SafeBathApp() {
                     currentScreen = if (isGuardian) SafeBathScreen.DASHBOARD else SafeBathScreen.CALIBRATION
                 })
 
-                SafeBathScreen.CALIBRATION -> ToiletCalibrationScreen(onConfirm = { x, y ->
+                SafeBathScreen.CALIBRATION -> ToiletCalibrationScreen(onConfirm = { coordinatesMap ->
+                    // 💡 [핵심 변경] 캘리브레이션에서 뭉텅이로 넘어온 Map을 하나씩 쪼개서 기기에 영구 저장
                     with(sharedPref.edit()) {
-                        putFloat("toilet_x", x)
-                        putFloat("toilet_y", y)
+                        coordinatesMap.forEach { (zone, coord) ->
+                            putFloat("coord_${zone.name}_x", coord.first)
+                            putFloat("coord_${zone.name}_y", coord.second)
+                        }
                         apply()
                     }
-                    savedX = x
-                    savedY = y
+
+                    // 메모리(상태 변수)에도 업데이트
+                    savedCoordinates.clear()
+                    savedCoordinates.putAll(coordinatesMap)
                     currentScreen = SafeBathScreen.DASHBOARD
                 })
 
+                // 대시보드로 x, y 대신 저장된 Map(savedCoordinates)을 통째로 전달
                 SafeBathScreen.DASHBOARD -> UsagePatternDashboard(
-                    x = savedX,
-                    y = savedY,
+                    savedCoordinates = savedCoordinates,
                     isGuardian = isGuardianMode,
                     viewModel = bathViewModel,
-                    onReset = {
+                    // 동작 1: 재설정 버튼 누름 (좌표만 지우기)
+                    onRecalibrate = {
                         with(sharedPref.edit()) {
-                            clear()
+                            CalibrationZone.values().forEach { zone ->
+                                remove("coord_${zone.name}_x")
+                                remove("coord_${zone.name}_y")
+                            }
                             apply()
                         }
-                        currentScreen = SafeBathScreen.LOGIN
+                        savedCoordinates.clear() // 현재 메모리 비우기
+                        currentScreen = SafeBathScreen.CALIBRATION // 캘리브레이션(좌표 설정) 화면으로!
+                    },
+
+                    // 동작 2: 로그아웃 버튼 누름 (전부 다 지우기)
+                    onLogout = {
+                        with(sharedPref.edit()) {
+                            clear() // 기기에 저장된 계정 정보까지 모조리 폭파!
+                            apply()
+                        }
+                        savedCoordinates.clear()
+                        currentScreen = SafeBathScreen.LOGIN // 첫 로그인 화면으로!
                     }
                 )
             }
         }
     }
 }
-
 
