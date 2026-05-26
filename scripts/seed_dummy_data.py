@@ -13,9 +13,9 @@ from backend.app.services.sensor_service import sensor_service
 
 
 ZONE_PROFILES = {
-    "door": {"center_x": 0.3, "center_y": 0.4, "z": 1.45, "motion": 0.18},
-    "sink": {"center_x": 1.2, "center_y": 0.8, "z": 1.35, "motion": 0.12},
     "toilet": {"center_x": 2.0, "center_y": 1.4, "z": 1.2, "motion": 0.08},
+    "sink": {"center_x": 1.2, "center_y": 0.8, "z": 1.35, "motion": 0.12},
+    "bath": {"center_x": 1.6, "center_y": 1.1, "z": 1.15, "motion": 0.1},
 }
 
 

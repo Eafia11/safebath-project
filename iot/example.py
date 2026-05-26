@@ -1,12 +1,17 @@
 import json
 import os
 import time
+from datetime import datetime
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
-BACKEND_URL = os.getenv("SAFEBATH_BACKEND_URL", "http://127.0.0.1:8000")
+BACKEND_URL = os.getenv("SAFEBATH_BACKEND_URL", "http://43.201.28.192:8000")
 API_KEY = os.getenv("SAFEBATH_API_KEY", "")
+
+
+def timestamp() -> str:
+    return datetime.now().isoformat(timespec="seconds")
 
 
 def post_json(path: str, payload: dict) -> dict:
@@ -66,7 +71,7 @@ def demo_loop():
     for sample in samples:
         response = send_mmwave_sample(**sample)
         status = response.get("data", {}).get("status", {})
-        print(f"sent mmwave sample -> state={status.get('current_state')}")
+        print(f"{timestamp()} sent mmwave sample -> state={status.get('current_state')}")
         time.sleep(1)
 
 
@@ -74,7 +79,7 @@ if __name__ == "__main__":
     try:
         demo_loop()
     except HTTPError as error:
-        print(f"HTTP error: {error.code} {error.reason}")
+        print(f"{timestamp()} HTTP error: {error.code} {error.reason}")
         print(error.read().decode("utf-8"))
     except URLError as error:
-        print(f"Connection error: {error.reason}")
+        print(f"{timestamp()} Connection error: {error.reason}")

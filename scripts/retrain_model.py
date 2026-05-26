@@ -11,12 +11,12 @@ from backend.app.ml.train import train_model, train_model_from_csv
 
 
 DEFAULT_TRAINING_SAMPLES = [
-    {"detected": True, "x": 0.1, "y": 0.2, "z": 1.5, "motion_level": 0.05, "still_time": 0, "zone": "door"},
-    {"detected": True, "x": 0.2, "y": 0.4, "z": 1.48, "motion_level": 0.1, "still_time": 1, "zone": "door"},
-    {"detected": True, "x": 1.0, "y": 0.8, "z": 1.42, "motion_level": 0.15, "still_time": 2, "zone": "sink"},
-    {"detected": True, "x": 1.3, "y": 1.0, "z": 1.4, "motion_level": 0.2, "still_time": 0, "zone": "sink"},
     {"detected": True, "x": 1.8, "y": 1.5, "z": 1.35, "motion_level": 0.12, "still_time": 3, "zone": "toilet"},
     {"detected": True, "x": 2.0, "y": 1.4, "z": 1.36, "motion_level": 0.18, "still_time": 1, "zone": "toilet"},
+    {"detected": True, "x": 1.0, "y": 0.8, "z": 1.42, "motion_level": 0.15, "still_time": 2, "zone": "sink"},
+    {"detected": True, "x": 1.3, "y": 1.0, "z": 1.4, "motion_level": 0.2, "still_time": 0, "zone": "sink"},
+    {"detected": True, "x": 1.5, "y": 1.1, "z": 1.2, "motion_level": 0.12, "still_time": 2, "zone": "bath"},
+    {"detected": True, "x": 1.7, "y": 1.2, "z": 1.18, "motion_level": 0.1, "still_time": 4, "zone": "bath"},
     {"detected": False, "x": 0.0, "y": 0.0, "z": 0.0, "motion_level": 0.0, "still_time": 0},
 ]
 

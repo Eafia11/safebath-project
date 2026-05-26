@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from ..models.calibration import (
     CalibrationCompleteRequest,
@@ -40,12 +40,22 @@ def set_calibration_step(data: CalibrationStepRequest):
 
 @router.post("/complete", response_model=CommonResponse)
 def complete_calibration_zone(data: CalibrationCompleteRequest):
-    status = calibration_service.complete_zone(
-        zone_name=data.zone_name,
-        center_x=data.center_x,
-        center_y=data.center_y,
-        radius=data.radius,
-    )
+    try:
+        status = calibration_service.complete_zone(
+            zone_name=data.zone_name,
+            center_x=data.center_x,
+            center_y=data.center_y,
+            radius=data.radius,
+            sample_limit=data.sample_limit,
+            min_samples=data.min_samples,
+            radius_padding=data.radius_padding,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    if status is None:
+        raise HTTPException(status_code=400, detail="Calibration is not active.")
+
     return success_response(
         message=f"{data.zone_name} calibration completed successfully.",
         data=status,

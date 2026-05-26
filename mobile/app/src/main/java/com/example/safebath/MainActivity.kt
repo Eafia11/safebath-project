@@ -180,7 +180,7 @@ class BathViewModel : ViewModel() {
                     )
                 }
             }.onSuccess {
-                _statusMessage.value = "door / toilet / sink 존 정보가 서버에 저장되었습니다"
+                _statusMessage.value = "toilet / sink / bath 존 정보가 서버에 저장되었습니다"
                 onSuccess(zones.first { it.zoneName == "toilet" })
             }.onFailure { error ->
                 _statusMessage.value = "보정 요청 실패: ${error.message ?: "알 수 없는 오류"}"
@@ -381,7 +381,7 @@ fun ToiletCalibrationScreen(
             Column(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("현재 단계", style = MaterialTheme.typography.labelLarge, color = SafeBathTheme.PrimaryBlue)
                 Text("욕실 존 위치 보정", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = SafeBathTheme.OnSurfaceText)
-                Text("처음에는 비어 있는 상태로 시작하고, 사용자가 door / toilet / sink 존을 직접 추가해 저장합니다.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSecondaryText)
+                Text("처음에는 비어 있는 상태로 시작하고, 사용자가 toilet / sink / bath 존을 직접 추가해 저장합니다.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSecondaryText)
             }
         }
         Spacer(modifier = Modifier.height(20.dp))
@@ -390,7 +390,7 @@ fun ToiletCalibrationScreen(
                 Icon(Icons.Default.AccessibilityNew, contentDescription = null, modifier = Modifier.size(60.dp), tint = SafeBathTheme.PrimaryBlue)
                 Text("욕실 주요 위치 설정", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = SafeBathTheme.OnSurfaceText)
                 Text("존 추가 버튼을 눌러 주요 위치를 하나씩 등록합니다.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSecondaryText)
-                Text("1. door, toilet, sink 중 아직 추가되지 않은 존을 생성합니다.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSurfaceText)
+                Text("1. toilet, sink, bath 중 아직 추가되지 않은 존을 생성합니다.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSurfaceText)
                 Text("2. 각 존의 중심 좌표와 반경(radius)을 입력합니다.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSurfaceText)
                 Text("3. 저장 후 백엔드가 좌표를 존 정보로 사용합니다.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSurfaceText)
             }
@@ -421,7 +421,7 @@ fun ToiletCalibrationScreen(
                 ) {
                     Icon(Icons.Default.AddLocationAlt, contentDescription = null, tint = SafeBathTheme.PrimaryBlue, modifier = Modifier.size(42.dp))
                     Text("아직 추가된 존이 없습니다.", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("먼저 존 추가 버튼을 눌러 door, toilet, sink 중 필요한 위치를 등록해주세요.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSecondaryText, textAlign = TextAlign.Center)
+                    Text("먼저 존 추가 버튼을 눌러 toilet, sink, bath 중 필요한 위치를 등록해주세요.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSecondaryText, textAlign = TextAlign.Center)
                 }
             }
         } else {
@@ -579,14 +579,14 @@ private fun parseZoneCalibration(
 }
 
 private fun createNextZoneDraft(existingZones: List<ZoneCalibrationDraft>): ZoneCalibrationDraft? {
-    val remainingZone = listOf("door", "toilet", "sink")
+    val remainingZone = listOf("toilet", "sink", "bath")
         .firstOrNull { candidate -> existingZones.none { it.zoneName == candidate } }
         ?: return null
 
     return when (remainingZone) {
-        "door" -> ZoneCalibrationDraft("door", "출입문", "0.0", "0.0", "0.8")
         "toilet" -> ZoneCalibrationDraft("toilet", "변기", "1.25", "0.78", "0.7")
-        else -> ZoneCalibrationDraft("sink", "세면대", "2.10", "0.95", "0.7")
+        "sink" -> ZoneCalibrationDraft("sink", "세면대", "2.10", "0.95", "0.7")
+        else -> ZoneCalibrationDraft("bath", "욕조", "1.70", "1.20", "0.7")
     }
 }
 

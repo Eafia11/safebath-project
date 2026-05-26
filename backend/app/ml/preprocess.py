@@ -8,8 +8,8 @@ from ..utils.math_utils import distance_2d, safe_float
 
 def _zone_score(zone: str | None) -> float:
     mapping = {
-        "door": 0.2,
         "sink": 0.4,
+        "bath": 0.6,
         "toilet": 0.8,
     }
     return mapping.get(zone or "", 0.0)

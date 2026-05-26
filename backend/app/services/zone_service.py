@@ -1,6 +1,7 @@
 from typing import Optional
 
 from ..utils.math_utils import distance_2d
+from ..utils.validators import validate_zone_name
 from .calibration_service import calibration_service
 
 
@@ -11,7 +12,7 @@ class ZoneService:
         y: Optional[float],
         explicit_zone: Optional[str] = None,
     ) -> Optional[str]:
-        if explicit_zone:
+        if explicit_zone and validate_zone_name(explicit_zone):
             return explicit_zone
 
         if x is None or y is None:

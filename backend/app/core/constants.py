@@ -17,6 +17,7 @@ class UserState(str, Enum):
 # =========================
 class Zone(str, Enum):
     TOILET = "toilet"
+    BATH = "bath"
     SHOWER = "shower"
     SINK = "sink"
     ENTRANCE = "entrance"

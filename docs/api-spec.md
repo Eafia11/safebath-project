@@ -1,291 +1,354 @@
-## API 명세 (API Specification)
+# API 명세 (API Specification)
+
+SafeBath 백엔드는 FastAPI 기반 HTTP API를 제공한다. 모든 일반 API는 공통 응답 형식
+`success`, `message`, `data`를 사용한다.
 
-시스템은 다음과 같은 API 엔드포인트를 제공한다.
+기본 주소:
 
----
+```text
+http://localhost:8000
+```
+
+Swagger 문서:
+
+```text
+http://localhost:8000/docs
+```
+
+## 인증
+
+다음 API는 `.env`의 `API_KEY`가 설정된 경우 `x-api-key` 헤더가 필요하다.
+
+- `POST /sensor/mmwave`
+- `POST /sensor/door`
+- `POST /device/button`
+- `POST /device/speaker`
+- `POST /device/heartbeat`
+- `GET /device/status`
+- `GET /admin/snapshot`
+- `GET /admin/tuning`
+- `GET /admin/tuning.csv`
+
+예시:
+
+```http
+x-api-key: your-api-key
+```
+
+## 공통 응답
+
+```json
+{
+  "success": true,
+  "message": "Current status retrieved successfully.",
+  "data": {}
+}
+```
+
+## Health
 
-### 1. 서버 상태 확인
+### GET /health
 
-GET /health  
+서버가 정상적으로 실행 중인지 확인한다.
 
-설명: 서버의 정상 동작 여부를 확인한다.  
+응답 예시:
 
-응답 예시  
+```json
+{
+  "success": true,
+  "message": "서버가 정상적으로 동작 중입니다.",
+  "data": {
+    "status": "healthy"
+  }
+}
+```
 
-success: true  
-message: 서버가 정상적으로 동작 중입니다.  
-data:  
-  status: healthy  
+## Status
 
----
+### GET /status
 
-### 2. 현재 상태 조회
+현재 욕실 상태와 활성 세션 정보를 조회한다.
 
-GET /status  
+응답 예시:
 
-설명: 현재 시스템 상태를 반환한다.  
+```json
+{
+  "success": true,
+  "message": "Current status retrieved successfully.",
+  "data": {
+    "current_state": "ACTIVE",
+    "last_door_state": "closed",
+    "last_mmwave_detected": true,
+    "last_zone": "toilet",
+    "last_motion_level": 0.4,
+    "last_still_time": 3,
+    "last_reason": "Occupant movement was detected",
+    "last_updated": "2026-05-26T12:00:00.000000",
+    "waiting_for_response": false,
+    "pending_response_type": null,
+    "abnormal_start_time": null,
+    "last_fall_detected": false,
+    "last_fall_score": 0.0,
+    "last_fall_at": null,
+    "active_session": null
+  }
+}
+```
 
-응답 예시  
+## Sensor
 
-success: true  
-message: 현재 시스템 상태를 조회했습니다.  
-data:  
-  current_state: EMPTY  
+### POST /sensor/mmwave
 
----
+mmWave 센서의 감지 여부, 좌표, 움직임 정보를 수신한다. 수신된 데이터는 상태 판단,
+세션 기록, feature 생성, 낙상 규칙 탐지, 이상탐지 모델 입력으로 사용된다.
 
-### 3. mmWave 센서 데이터 수신
+요청 예시:
 
-POST /sensor/mmwave  
+```json
+{
+  "detected": true,
+  "x": 1.25,
+  "y": 0.78,
+  "z": 1.0,
+  "motion_level": 0.42,
+  "velocity": 0.12,
+  "zone": "toilet",
+  "still_time": 3
+}
+```
 
-설명: mmWave 센서로부터 사용자 위치 및 움직임 데이터를 수신한다.  
+응답 data 주요 필드:
 
-요청 예시  
+- `payload`: 정규화된 센서 입력
+- `feature_vector`: ML 입력 feature
+- `fall_detection`: 규칙 기반 낙상 판단 결과
+- `anomaly`: 이상탐지 판단 결과
+- `fusion_detection`: 낙상/이상탐지/상태 정보를 결합한 판단
+- `status`: 처리 후 상태 스냅샷
+- `session`: 연결된 활성 세션
 
-timestamp: 2026-03-28T15:00:00  
-detected: true  
-x: 1.2  
-y: 2.4  
-motion_level: 0.7  
-zone: toilet  
-still_time: 10  
+### POST /sensor/door
 
-응답 예시  
+도어 센서 상태를 수신한다.
 
-success: true  
-message: mmWave 데이터 수신 완료  
-data:  
-  received: true  
+요청 예시:
 
----
+```json
+{
+  "door_state": "open"
+}
+```
 
-### 4. 도어 센서 데이터 수신
+`door_state` 값:
 
-POST /sensor/door  
+- `open`
+- `closed`
 
-설명: 도어 센서로부터 출입 상태를 수신한다.  
+## Device
 
-요청 예시  
+### POST /device/button
 
-timestamp: 2026-03-28T15:00:03  
-door_state: open  
+사용자 버튼 입력을 처리한다.
 
-응답 예시  
+요청 예시:
 
-success: true  
-message: 도어 센서 데이터 수신 완료  
-data:  
-  received: true  
+```json
+{
+  "button_type": "confirm_safe"
+}
+```
 
----
+`button_type` 값:
 
-### 5. 버튼 입력 처리
+- `confirm_safe`: 사용자가 안전함을 확인
+- `emergency_call`: 사용자가 직접 긴급 호출
+- `reset`: 상태 초기화
 
-POST /device/button  
+### POST /device/speaker
 
-설명: 사용자 버튼 입력을 처리한다.  
+스피커 알림 요청을 등록한다.
 
-요청 예시  
+요청 예시:
 
-timestamp: 2026-03-28T15:02:00  
-button_type: confirm_safe  
+```json
+{
+  "message": "안전 확인 버튼을 눌러주세요.",
+  "alert_level": "warning",
+  "repeat": 3
+}
+```
 
-응답 예시  
+`alert_level` 값:
 
-success: true  
-message: 버튼 입력 처리 완료  
-data:  
-  received: true  
+- `info`
+- `warning`
+- `danger`
 
----
+### POST /device/heartbeat
 
-### 6. 알림 생성
+IoT 장치의 연결 상태를 보고한다.
 
-POST /alerts  
+요청 예시:
 
-설명: 이상행동 또는 위험 상황 발생 시 알림을 생성한다.  
+```json
+{
+  "device_name": "mmwave",
+  "status": "online"
+}
+```
 
-요청 예시  
+`device_name` 값:
 
-timestamp: 2026-03-28T15:03:00  
-level: warning  
-message: 사용자 응답 없음  
+- `mmwave`
+- `door_sensor`
+- `button`
+- `speaker`
 
-응답 예시  
+`status` 값:
 
-success: true  
-message: 알림 생성 완료  
-data:  
-  created: true  
+- `online`
+- `offline`
+- `degraded`
 
+### GET /device/status
 
-## 존 캘리브레이션 API (Calibration API)
+최근 heartbeat 기준 장치 상태 목록을 조회한다.
 
-존 캘리브레이션 API는 사용자의 실제 위치 정보를 기반으로 door, toilet, sink 존을 설정하기 위한 절차를 관리한다.  
-현재 단계에서는 캘리브레이션 세션 관리 및 존 완료 상태를 처리하며, 추후 실제 mmWave 좌표 데이터와 연결하여 존 중심 좌표 및 범위를 계산하도록 확장한다.
+## Calibration
 
----
+### POST /calibration/start
 
-### 1. 캘리브레이션 시작
+존 캘리브레이션 세션을 시작한다.
 
-POST /calibration/start
+요청 예시:
 
-설명: 새로운 존 캘리브레이션 세션을 시작한다.  
-초기 단계는 door 존부터 시작한다.
+```json
+{
+  "user_id": "mobile_user"
+}
+```
 
-요청 예시
+### GET /calibration/status
 
-user_id: user_001
+현재 캘리브레이션 진행 상태를 조회한다.
 
-응답 예시
+### POST /calibration/step
 
-success: true  
-message: 존 캘리브레이션을 시작했습니다.  
-data:  
-  is_active: true  
-  user_id: user_001  
-  current_step: door  
-  started_at: 2026-03-28T16:00:00  
-  completed_zones: []  
-  progress: 0/3  
+현재 캘리브레이션 단계를 변경한다.
 
----
+요청 예시:
 
-### 2. 캘리브레이션 상태 조회
+```json
+{
+  "zone_name": "toilet"
+}
+```
 
-GET /calibration/status
+`zone_name` 값:
 
-설명: 현재 캘리브레이션 진행 상태를 조회한다.
+- `toilet`
+- `sink`
+- `bath`
 
-응답 예시
+### POST /calibration/complete
 
-success: true  
-message: 캘리브레이션 상태를 조회했습니다.  
-data:  
-  is_active: true  
-  user_id: user_001  
-  current_step: toilet  
-  started_at: 2026-03-28T16:00:00  
-  completed_zones:  
-    - door  
-  progress: 1/3  
+특정 존의 캘리브레이션을 완료한다. `center_x`, `center_y`, `radius`를 전달하면
+수동 보정으로 저장한다. 일부 값이 없으면 최근 mmWave 좌표 샘플을 사용해 자동 계산한다.
 
----
+요청 예시:
 
-### 3. 캘리브레이션 단계 변경
+```json
+{
+  "zone_name": "toilet",
+  "center_x": 1.25,
+  "center_y": 0.78,
+  "radius": 0.7,
+  "sample_limit": 20,
+  "min_samples": 5,
+  "radius_padding": 0.05
+}
+```
 
-POST /calibration/step
+### POST /calibration/reset
 
-설명: 현재 진행 중인 캘리브레이션 단계를 수동으로 변경한다.
+캘리브레이션 진행 상태와 저장된 존 정보를 초기화한다.
 
-요청 예시
+### GET /calibration/zones
 
-zone_name: toilet
+저장된 존 정보를 조회한다.
 
-응답 예시
+## Sessions
 
-success: true  
-message: 캘리브레이션 단계를 변경했습니다.  
-data:  
-  is_active: true  
-  user_id: user_001  
-  current_step: toilet  
-  started_at: 2026-03-28T16:00:00  
-  completed_zones:  
-    - door  
-  progress: 1/3  
+### GET /sessions
 
----
+전체 세션 목록을 조회한다.
 
-### 4. 특정 존 캘리브레이션 완료
+### GET /sessions/active
 
-POST /calibration/complete
+현재 활성 세션을 조회한다.
 
-설명: 특정 존의 캘리브레이션을 완료 처리한다.  
-현재 단계에서는 더미 저장 구조를 사용하며, 추후 실제 좌표 기반 중심점 및 반경 계산 결과를 저장하도록 확장한다.
+### POST /sessions/start
 
-요청 예시
+세션을 수동으로 시작한다.
 
-zone_name: sink
+### POST /sessions/end
 
-응답 예시
+활성 세션을 수동으로 종료한다.
 
-success: true  
-message: sink 존 캘리브레이션을 완료했습니다.  
-data:  
-  is_active: true  
-  user_id: user_001  
-  current_step: null  
-  started_at: 2026-03-28T16:00:00  
-  completed_zones:  
-    - door  
-    - toilet  
-    - sink  
-  progress: 3/3  
+## Alerts
 
----
+### GET /alerts
 
-### 5. 캘리브레이션 초기화
+생성된 알림 목록을 조회한다.
 
-POST /calibration/reset
+### GET /alerts/latest
 
-설명: 현재 진행 중인 캘리브레이션 세션과 저장된 진행 상태를 초기화한다.
+가장 최근 알림을 조회한다.
 
-응답 예시
+## Anomalies
 
-success: true  
-message: 캘리브레이션을 초기화했습니다.  
-data:  
-  is_active: false  
-  user_id: null  
-  current_step: null  
-  started_at: null  
-  completed_zones: []  
-  progress: 0/3  
+### GET /anomalies
 
----
+현재 이상상황 여부, 최신 이상탐지 결과, 최신 알림 정보를 조회한다.
 
-### 6. 저장된 존 정보 조회
+응답 data 주요 필드:
 
-GET /calibration/zones
+- `detected`: 현재 이상상황 여부
+- `current_state`: 현재 상태
+- `fall_detected`: 최근 낙상 규칙 탐지 여부
+- `latest_prediction`: 최신 ML/heuristic 이상탐지 결과
+- `latest_alert`: 최신 알림
+- `alert_count`: 누적 알림 수
 
-설명: 현재 저장된 존 정보를 조회한다.  
-현재 단계에서는 center_x, center_y, radius를 더미 구조로 유지하며, 센서 연동 후 실제 계산값이 저장된다.
+## Logs
 
-응답 예시
+### GET /logs
 
-success: true  
-message: 저장된 존 정보를 조회했습니다.  
-data:  
-  door:  
-    center_x: null  
-    center_y: null  
-    radius: null  
-    calibrated: true  
-  toilet:  
-    center_x: null  
-    center_y: null  
-    radius: null  
-    calibrated: true  
-  sink:  
-    center_x: null  
-    center_y: null  
-    radius: null  
-    calibrated: false  
+메모리에 저장된 시스템 로그 목록을 조회한다.
 
----
+## Admin
 
-### 캘리브레이션 대상 존
+### GET /admin/snapshot
 
-- door  
-- toilet  
-- sink  
+운영/시연용 요약 스냅샷을 조회한다.
 
----
+포함 정보:
 
-### 캘리브레이션 활용 목적
+- 현재 상태
+- 활성 세션
+- 장치 상태
+- 알림 수
+- 로그 수
 
-- 사용자 위치별 존 정보를 사전에 정의하기 위함  
-- mmWave 센서 좌표를 기반으로 자동 zone 판별을 수행하기 위함  
-- 화장실 이용 상태 및 이상행동 판단의 정확도를 높이기 위함  
-- 향후 비지도 학습 기반 이상행동 분석에 사용할 위치 feature를 안정적으로 확보하기 위함  
+### GET /admin/tuning
+
+최근 mmWave 기록을 튜닝용 JSON 데이터로 조회한다.
+
+쿼리 파라미터:
+
+- `limit`: 조회 개수, 기본값 100, 최대 1000
+
+### GET /admin/tuning.csv
+
+최근 mmWave 기록을 CSV 파일로 내려받는다. 모델 튜닝, 센서 ROI 조정,
+발표용 로그 분석에 사용한다.

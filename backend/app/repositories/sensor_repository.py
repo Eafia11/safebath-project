@@ -64,6 +64,25 @@ class SensorRepository:
             return None
         return records[-1]
 
+    def recent_mmwave_points(self, limit: int) -> List[Dict[str, float]]:
+        records = self.list_records(sensor="mmwave")
+        points: List[Dict[str, float]] = []
+        for record in reversed(records):
+            payload = record.get("payload") or {}
+            if not payload.get("detected"):
+                continue
+
+            x = payload.get("x")
+            y = payload.get("y")
+            if x is None or y is None:
+                continue
+
+            points.append({"x": float(x), "y": float(y)})
+            if len(points) >= limit:
+                break
+
+        return list(reversed(points))
+
     def clear(self):
         self.records.clear()
         self._next_id = 1

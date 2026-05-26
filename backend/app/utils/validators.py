@@ -1,7 +1,7 @@
 from typing import Optional
 
 
-VALID_ZONE_NAMES = {"door", "toilet", "sink"}
+VALID_ZONE_NAMES = {"toilet", "sink", "bath"}
 
 
 def is_valid_coordinate(value: Optional[float]) -> bool:
