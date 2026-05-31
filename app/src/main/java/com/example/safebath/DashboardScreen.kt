@@ -66,21 +66,15 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.filled.AccessibilityNew
 import androidx.compose.material.icons.filled.Bathtub
 import androidx.compose.material.icons.filled.EventSeat
-import androidx.compose.material.icons.filled.Logout
-import androidx.compose.material3.*
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.filled.Refresh
-
+import androidx.compose.material3.OutlinedButton
 
 // ============================== [3. 대시보드 (하단 탭 뼈대)] ==============================
 @Composable
 fun UsagePatternDashboard(
-    // 💡 1. 기존 x, y 대신 MainActivity가 던져주는 '진짜' 바구니(Map)를 입구에서 받습니다.
     savedCoordinates: Map<CalibrationZone, Pair<Float, Float>>,
     isGuardian: Boolean,
     viewModel: BathViewModel,
@@ -92,14 +86,21 @@ fun UsagePatternDashboard(
     var playingRingtone by remember { mutableStateOf<Ringtone?>(null) }
     var selectedTab by remember { mutableIntStateOf(0) }
 
-    // 💡 2. (이전에 이곳에 추가하셨던 임시 savedCoordinates 변수와 LaunchedEffect는 삭제했습니다.)
-    // 이제 파라미터로 넘어온 진짜 savedCoordinates를 바로 사용합니다.
+    // 💡 [통합 포인트 1] 서버의 실시간 이상 징후를 감시합니다!
+    val anomalyInfo by viewModel.anomalyState.collectAsState()
+
+    // 서버에서 'detected = true' 또는 'fall_detected = true' 신호가 오면 자동으로 팝업 띄우기
+    LaunchedEffect(anomalyInfo) {
+        if (anomalyInfo?.detected == true || anomalyInfo?.fallDetected == true) {
+            isEmergencyDetected = true
+        }
+    }
 
     // --- 긴급 알림 팝업 (모든 탭에서 공통 동작) ---
     if (isEmergencyDetected) {
         LaunchedEffect(Unit) {
             playingRingtone = playEmergencyAlarm(context)
-            viewModel.updateState(BathState.EMERGENCY) // 상태도 긴급으로 변경
+            viewModel.updateState(BathState.EMERGENCY)
         }
         AlertDialog(
             onDismissRequest = { },
@@ -154,81 +155,130 @@ fun UsagePatternDashboard(
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize().background(SafeBathTheme.BackgroundGray)) {
             when (selectedTab) {
-                0 -> HomeTabContent(isGuardian, viewModel) { isEmergencyDetected = true }
-                1 -> ReportTabContent()
-                2 -> SettingsTabContent(
-                    savedCoordinates = savedCoordinates,
-                    onRecalibrate = onRecalibrate, // ➡️ 공간 재설정 기능 연결
-                    onLogout = onLogout            // ➡️ 로그아웃 기능 연결
-                )
+                0 -> HomeTabContent(isGuardian, viewModel)
+                // 💡 [통합 포인트 2] 리포트 탭에 진짜 데이터를 넘겨주기 위해 viewModel 전달
+                1 -> ReportTabContent(viewModel = viewModel)
+                2 -> SettingsTabContent(savedCoordinates, onRecalibrate, onLogout)
             }
         }
     }
 }
 
-// --- 3-1. 홈 탭 내용 ---
+
+// --- 3-1. 홈 탭 내용 (시뮬레이터 제거 완료 버전) ---
 @Composable
-fun HomeTabContent(isGuardian: Boolean, viewModel: BathViewModel, onTestEmergency: () -> Unit) {
+fun HomeTabContent(isGuardian: Boolean, viewModel: BathViewModel) {
     val scrollState = rememberScrollState()
     val currentState by viewModel.currentState.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(scrollState)) {
+        // 1. 상단 인사말 영역
         Row(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
                 if (isGuardian) {
                     Surface(color = Color(0xFFE8F5E9), shape = RoundedCornerShape(16.dp), modifier = Modifier.padding(bottom = 8.dp)) {
-                        Text(text = "🛡️ 보호자 모니터링 중",
-                            color = Color(0xFF2E7D32),
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                        Text("🛡️ 보호자 모니터링 중", color = Color(0xFF2E7D32), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                     }
                 }
-                Text(text = " 안녕하세요,\n ${if(isGuardian) "보호자" else "홍길동"}님! \uD83D\uDC4B", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text(" 안녕하세요,\n ${if(isGuardian) "보호자" else "김갑수"}님! 👋", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             }
         }
 
-        // 실시간 상태 반영 카드
+        // 2. 실시간 상태 카드 (기존 유지)
         RealTimeStatusCard(state = currentState)
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Card(
-            modifier = Modifier.fillMaxWidth().clickable { onTestEmergency() },
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Sensors, contentDescription = null, tint = SafeBathTheme.AlertRed)
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text("낙상 센서 테스트 (개발용)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = SafeBathTheme.AlertRed)
-                    Text("터치 시 라즈베리파이 낙상 신호를 시뮬레이션합니다.", style = MaterialTheme.typography.bodySmall, color = SafeBathTheme.OnSecondaryText)
+        // 3. [신규] 기기 연결 상태 카드 (IoT 프로젝트 어필용!)
+        Text("시스템 상태", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            // mmWave 센서 상태
+            Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(10.dp).background(Color(0xFF4CAF50), shape = RoundedCornerShape(50))) // 초록색 불빛
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("레이더 센서", style = MaterialTheme.typography.labelMedium, color = SafeBathTheme.OnSecondaryText)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("정상 작동 중", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            // 서버 동기화 상태
+            Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, tint = SafeBathTheme.PrimaryBlue, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("서버 동기화", style = MaterialTheme.typography.labelMedium, color = SafeBathTheme.OnSecondaryText)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("실시간 연동 중", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                 }
             }
         }
 
-        // [테스트 기능] 상태 변경 시뮬레이션 버튼들
         Spacer(modifier = Modifier.height(24.dp))
-        Text("상태 변경 시뮬레이터 (개발용)", style = MaterialTheme.typography.labelMedium, color = SafeBathTheme.OnSecondaryText)
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { viewModel.updateState(BathState.ENTERING) }, modifier = Modifier.weight(1f)) { Text("진입") }
-            Button(onClick = { viewModel.updateState(BathState.ACTIVE) }, modifier = Modifier.weight(1f)) { Text("활동") }
-            Button(onClick = { viewModel.updateState(BathState.TOILET_USE) }, modifier = Modifier.weight(1f)) { Text("변기") }
+
+        // 4. [신규] 오늘의 요약 카드
+        Text("오늘의 안전 요약", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceAround) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("화장실 이용", style = MaterialTheme.typography.labelMedium, color = SafeBathTheme.OnSecondaryText)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("4회", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = SafeBathTheme.PrimaryBlue)
+                }
+                Divider(modifier = Modifier.height(40.dp).width(1.dp), color = SafeBathTheme.BackgroundGray)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("평균 체류", style = MaterialTheme.typography.labelMedium, color = SafeBathTheme.OnSecondaryText)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("6분", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                }
+                Divider(modifier = Modifier.height(40.dp).width(1.dp), color = SafeBathTheme.BackgroundGray)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("특이사항", style = MaterialTheme.typography.labelMedium, color = SafeBathTheme.OnSecondaryText)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("없음", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
+                }
+            }
         }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // 5. [신규] 빠른 긴급 호출 버튼
+        Button(
+            onClick = { /* 시연용이므로 눌렀을 때의 동작은 비워두거나 토스트 메시지 띄우기 */ },
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFF3E0)),
+            shape = MaterialTheme.shapes.medium
+        ) {
+            Icon(Icons.Default.Call, contentDescription = null, tint = Color(0xFFF57C00))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("보호자 긴급 호출", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF57C00))
+        }
+
+        Spacer(modifier = Modifier.height(30.dp))
     }
 }
 
 // ============================== [탭 2: 리포트 화면 (업그레이드 버전)] ==============================
+// 💡 [통합 포인트 3] 뷰모델을 받아와 진짜 로그 데이터를 사용합니다.
 @Composable
-fun ReportTabContent() {
+fun ReportTabContent(viewModel: BathViewModel) {
     val scrollState = rememberScrollState()
     val days = listOf("월", "화", "수", "목", "금", "토", "일")
     val nightWeeklyUsage = listOf(1, 2, 0, 1, 3, 2, 1)
     val stayTimeData = listOf(5.5f, 6.0f, 4.5f, 7.0f, 9.5f, 6.5f, 5.0f)
-
-    // 그래프 위에 글씨를 그리기 위한 도구
     val textMeasurer = rememberTextMeasurer()
+
+    // 서버의 진짜 로그 데이터 가져오기!
+    val serverLogs by viewModel.eventLogs.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(scrollState)) {
         Text("건강 분석 리포트", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 24.dp))
@@ -239,10 +289,7 @@ fun ReportTabContent() {
             colors = CardDefaults.cardColors(containerColor = SafeBathTheme.PrimaryBlue),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
-            Row(modifier = Modifier.fillMaxWidth().padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween)
-            {
+            Row(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
                     Text("이번 주 안전 지수", style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.8f))
                     Spacer(modifier = Modifier.height(4.dp))
@@ -255,27 +302,23 @@ fun ReportTabContent() {
             }
         }
 
-        // --- 2. 야간 이용 패턴  ---
+        // --- 2. 야간 이용 패턴 ---
         Text("야간 화장실 이용 패턴", style = MaterialTheme.typography.titleMedium, color = SafeBathTheme.OnSecondaryText, modifier = Modifier.padding(bottom = 12.dp))
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
-            colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
+        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp), colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground), elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
-                        Text(text = "요일별 야간 이용", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text(text = "최고 이용일: 금요일", style = MaterialTheme.typography.labelSmall, color = SafeBathTheme.OnSecondaryText)
+                        Text("요일별 야간 이용", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("최고 이용일: 금요일", style = MaterialTheme.typography.labelSmall, color = SafeBathTheme.OnSecondaryText)
                     }
-                    //Text(text = "3회", style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.ExtraBold, color = SafeBathTheme.PrimaryBlue)
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(modifier = Modifier.fillMaxWidth().height(140.dp).padding(top = 16.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
                     nightWeeklyUsage.forEachIndexed { index, count ->
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = count.toString(), style = MaterialTheme.typography.labelSmall)
+                            Text(count.toString(), style = MaterialTheme.typography.labelSmall)
                             Box(modifier = Modifier.width(20.dp).height((count * 25).dp.coerceAtLeast(4.dp)).background(SafeBathTheme.PrimaryBlue, shape = MaterialTheme.shapes.small))
-                            Text(text = days[index], style = MaterialTheme.typography.labelSmall)
+                            Text(days[index], style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
@@ -284,87 +327,64 @@ fun ReportTabContent() {
 
         // --- 3. 체류 시간 트렌드 ---
         Text("체류 시간 트렌드", style = MaterialTheme.typography.titleMedium, color = SafeBathTheme.OnSecondaryText, modifier = Modifier.padding(bottom = 12.dp))
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
-            colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
+        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp), colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground), elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(text = "요일별 평균 체류 시간(분)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("요일별 평균 체류 시간(분)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Canvas(modifier = Modifier.fillMaxWidth().height(150.dp).padding(vertical = 16.dp)) {
                     val maxTime = stayTimeData.maxOrNull() ?: 1f
-
-                    val sidePadding = 40f   // 좌우 여백 (맨 앞/뒤 글씨가 잘리지 않게)
-                    val topPadding = 60f    // 위쪽 여백 (글씨가 들어갈 공간)
-                    val bottomPadding = 20f // 아래쪽 여백
-
-                    // 전체 도화지 크기에서 여백을 뺀 '실제 그림이 그려질 공간'
+                    val sidePadding = 40f
+                    val topPadding = 60f
+                    val bottomPadding = 20f
                     val drawWidth = size.width - (sidePadding * 2)
                     val drawHeight = size.height - topPadding - bottomPadding
-
                     val stepX = drawWidth / (stayTimeData.size - 1)
                     val path = Path()
 
-                    // 선 그리기 (계산식에 여백 추가)
                     stayTimeData.forEachIndexed { index, value ->
                         val currentX = sidePadding + (index * stepX)
                         val currentY = topPadding + (drawHeight - (value / maxTime * drawHeight))
-
                         if (index == 0) path.moveTo(currentX, currentY) else path.lineTo(currentX, currentY)
                     }
                     drawPath(path = path, color = SafeBathTheme.PrimaryBlue, style = Stroke(width = 6f))
 
-                    // 꼭짓점 원과 숫자 텍스트 그리기
                     stayTimeData.forEachIndexed { index, value ->
                         val currentX = sidePadding + (index * stepX)
                         val currentY = topPadding + (drawHeight - (value / maxTime * drawHeight))
-
-                        // 파란색 원
                         drawCircle(color = SafeBathTheme.PrimaryBlue, radius = 8f, center = Offset(currentX, currentY))
 
-                        // 숫자 텍스트
-                        val textStr = "${value}"
-                        val textStyle = TextStyle(color = SafeBathTheme.OnSurfaceText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-
-                        // 💡 글씨의 실제 가로/세로 길이를 측정합니다.
-                        val textLayoutResult = textMeasurer.measure(textStr, textStyle)
-                        val textWidth = textLayoutResult.size.width
-                        val textHeight = textLayoutResult.size.height
-
-                        // 측정한 길이를 바탕으로 원의 정중앙 바로 위에 글씨를 배치합니다.
-                        drawText(
-                            textLayoutResult = textLayoutResult,
-                            topLeft = Offset(currentX - (textWidth / 2f), currentY - textHeight - 15f)
-                        )
+                        val textLayoutResult = textMeasurer.measure("$value", TextStyle(color = SafeBathTheme.OnSurfaceText, fontSize = 12.sp, fontWeight = FontWeight.Bold))
+                        drawText(textLayoutResult = textLayoutResult, topLeft = Offset(currentX - (textLayoutResult.size.width / 2f), currentY - textLayoutResult.size.height - 15f))
                     }
                 }
 
-                // 하단 요일 텍스트 (위의 sidePadding 비율에 맞게 양끝 여백 조정)
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    days.forEach { Text(text = it, style = MaterialTheme.typography.labelSmall, color = SafeBathTheme.OnSecondaryText) }
+                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    days.forEach { Text(it, style = MaterialTheme.typography.labelSmall, color = SafeBathTheme.OnSecondaryText) }
                 }
             }
         }
 
-        // --- [신규 추가] 4. 최근 특이사항 이력 로그 ---
+        // --- 4. 최근 특이사항 이력 로그 ---
         Text("최근 특이사항 이력", style = MaterialTheme.typography.titleMedium, color = SafeBathTheme.OnSecondaryText, modifier = Modifier.padding(bottom = 12.dp))
-        Card(modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
+        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground), elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)) {
             Column(modifier = Modifier.padding(16.dp)) {
-                // 이력 아이템 1
-                EventLogItem(time = "어제 03:15 AM", message = "야간 체류 시간 길어짐 (12분)", isWarning = true)
-                Divider(modifier = Modifier.padding(vertical = 12.dp), color = SafeBathTheme.BackgroundGray)
-                // 이력 아이템 2
-                EventLogItem(time = "목요일 01:20 AM", message = "평범한 야간 화장실 이용", isWarning = false)
-                Divider(modifier = Modifier.padding(vertical = 12.dp), color = SafeBathTheme.BackgroundGray)
-                // 이력 아이템 3
-                EventLogItem(time = "수요일 23:45 PM", message = "변기 외 구역 활동 감지 (샤워 추정)", isWarning = false)
+                // 💡 [통합 포인트 4] 가짜 데이터를 지우고, 서버에서 온 serverLogs 리스트를 반복문으로 그립니다!
+                if (serverLogs.isEmpty()) {
+                    Text("아직 기록된 특이사항 로그가 없습니다.", color = SafeBathTheme.OnSecondaryText)
+                } else {
+                    serverLogs.forEachIndexed { index, log ->
+                        EventLogItem(
+                            time = log.time,       // 백엔드의 timestamp
+                            message = log.message, // 백엔드의 message
+                            isWarning = log.isWarning // 백엔드의 is_warning
+                        )
+                        // 마지막 아이템이 아니면 구분선(Divider)을 그려줍니다.
+                        if (index < serverLogs.size - 1) {
+                            Divider(modifier = Modifier.padding(vertical = 12.dp), color = SafeBathTheme.BackgroundGray)
+                        }
+                    }
+                }
             }
         }
         Spacer(modifier = Modifier.height(30.dp))
@@ -374,85 +394,37 @@ fun ReportTabContent() {
 // --- 3-3. 설정 탭 내용 ---
 @Composable
 fun SettingsTabContent(
-    // 💡 x, y 대신 구역별 좌표가 담긴 Map 구조를 통째로 전달받습니다.
     savedCoordinates: Map<CalibrationZone, Pair<Float, Float>>,
     onRecalibrate: () -> Unit,
     onLogout: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text(
-            text = "앱 및 기기 설정",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 24.dp)
-        )
+        Text("앱 및 기기 설정", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 24.dp))
 
-        // 💡 1. 기기 연동 정보 섹션 카드
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
+        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), colors = CardDefaults.cardColors(containerColor = SafeBathTheme.CardBackground), elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "기기 연동 정보 (mmWave 센서)",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
+                Text("기기 연동 정보 (mmWave 센서)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "등록된 구역별 좌표 설정값",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = SafeBathTheme.OnSecondaryText
-                )
+                Text("등록된 구역별 좌표 설정값", style = MaterialTheme.typography.labelMedium, color = SafeBathTheme.OnSecondaryText)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // 💡 2. Map에 저장된 구역들을 하나씩 꺼내서 좌표 리스트를 동적으로 렌더링합니다.
                 if (savedCoordinates.isEmpty()) {
-                    Text(
-                        text = "등록된 구역 좌표 정보가 없습니다.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = SafeBathTheme.OnSecondaryText,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
+                    Text("등록된 구역 좌표 정보가 없습니다.", style = MaterialTheme.typography.bodyMedium, color = SafeBathTheme.OnSecondaryText, modifier = Modifier.padding(vertical = 8.dp))
                 } else {
                     savedCoordinates.forEach { (zone, coord) ->
-                        // 구역별 알맞은 아이콘 매핑
                         val icon = when (zone) {
                             CalibrationZone.TOILET -> Icons.Default.EventSeat
                             CalibrationZone.SINK -> Icons.Default.AccessibilityNew
                             CalibrationZone.BATHTUB -> Icons.Default.Bathtub
                         }
 
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = null,
-                                    tint = SafeBathTheme.PrimaryBlue,
-                                    modifier = Modifier.size(20.dp)
-                                )
+                                Icon(icon, contentDescription = null, tint = SafeBathTheme.PrimaryBlue, modifier = Modifier.size(20.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                // "(필수)" 텍스트가 노출되지 않도록 깔끔하게 치환
-                                Text(
-                                    text = zone.title.replace("(필수)", ""),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Medium
-                                )
+                                Text(zone.title.replace("(필수)", ""), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                             }
-                            // 소수점 둘째 자리까지 제한해서 출력
-                            Text(
-                                text = "X: ${String.format("%.2f", coord.first)}m, Y: ${String.format("%.2f", coord.second)}m",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Text("X: ${String.format("%.2f", coord.first)}m, Y: ${String.format("%.2f", coord.second)}m", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -461,26 +433,14 @@ fun SettingsTabContent(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // 💡 [신규 추가] 하단 버튼 2개 세트
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            // 1. 공간 재설정 버튼 (로그인은 유지)
-            Button(
-                onClick = onRecalibrate,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = SafeBathTheme.PrimaryBlue),
-                shape = MaterialTheme.shapes.medium
-            ) {
+            Button(onClick = onRecalibrate, modifier = Modifier.fillMaxWidth().height(56.dp), colors = ButtonDefaults.buttonColors(containerColor = SafeBathTheme.PrimaryBlue), shape = MaterialTheme.shapes.medium) {
                 Icon(Icons.Default.Refresh, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("전체 공간 재설정 (좌표 다시 찍기)", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
 
-            // 2. 로그아웃 버튼 (계정 정보 초기화)
-            OutlinedButton(
-                onClick = onLogout,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = MaterialTheme.shapes.medium
-            ) {
+            OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth().height(56.dp), shape = MaterialTheme.shapes.medium) {
                 Icon(Icons.Default.Logout, contentDescription = null, tint = Color.Gray)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("로그아웃", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Gray)

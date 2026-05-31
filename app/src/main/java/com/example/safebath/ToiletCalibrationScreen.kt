@@ -29,6 +29,7 @@ enum class CalibrationZone(val title: String, val defaultText: String) {
 // 2. 메인 화면으로 'Map' 전체를 넘겨주도록 수정된 함수 규격
 @Composable
 fun ToiletCalibrationScreen(
+    viewModel: BathViewModel,  // 💡 [추가] 뷰모델을 받아오도록 입구 열어주기!
     onConfirm: (Map<CalibrationZone, Pair<Float, Float>>) -> Unit
 ) {
     // --- 상태(State) 관리 ---
@@ -161,6 +162,14 @@ fun ToiletCalibrationScreen(
 
                     // 2. 장바구니(Map)에 현재 구역 좌표 담기
                     savedCoordinates[currentZone] = dummyCoordinate
+
+                    // 💡 [신규] 백엔드 서버로 실제 좌표 전송!
+                    val backendZoneName = when(currentZone) {
+                        CalibrationZone.TOILET -> "toilet"
+                        CalibrationZone.SINK -> "sink"
+                        CalibrationZone.BATHTUB -> "bath"
+                    }
+                    viewModel.sendZoneCoordinate(backendZoneName, dummyCoordinate.first, dummyCoordinate.second)
 
                     // 3. 다음 단계로 넘어가거나 완료하기
                     if (currentStepIndex < activeZones.size - 1) {

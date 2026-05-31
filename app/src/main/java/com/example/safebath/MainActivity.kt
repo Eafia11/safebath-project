@@ -72,7 +72,9 @@ fun SafeBathApp() {
                     currentScreen = if (isGuardian) SafeBathScreen.DASHBOARD else SafeBathScreen.CALIBRATION
                 })
 
-                SafeBathScreen.CALIBRATION -> ToiletCalibrationScreen(onConfirm = { coordinatesMap ->
+                SafeBathScreen.CALIBRATION -> ToiletCalibrationScreen(
+                    viewModel = bathViewModel, // 💡 [추가] 부모 화면에서 뷰모델을 던져주기!
+                    onConfirm = { coordinatesMap ->
                     // 💡 [핵심 변경] 캘리브레이션에서 뭉텅이로 넘어온 Map을 하나씩 쪼개서 기기에 영구 저장
                     with(sharedPref.edit()) {
                         coordinatesMap.forEach { (zone, coord) ->
