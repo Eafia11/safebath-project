@@ -76,7 +76,7 @@ def test_closed_door_uses_latest_mmwave_presence(client):
     assert empty_status["current_state"] == "EMPTY"
 
 
-def test_receive_mmwave_triggers_speaker_when_fall_detected(client):
+def test_receive_mmwave_triggers_speaker_when_possible_fall_detected(client):
     first_response = client.post(
         "/sensor/mmwave",
         json={
@@ -106,10 +106,12 @@ def test_receive_mmwave_triggers_speaker_when_fall_detected(client):
 
     assert fall_response.status_code == 200
     data = fall_response.json()["data"]
-    assert data["fall_detection"]["detected"] is True
+    assert data["fall_detection"]["candidate_detected"] is True
+    assert data["fall_detection"]["detected"] is False
     assert data["status"]["current_state"] == "ABNORMAL"
     assert data["status"]["waiting_for_response"] is True
     assert data["status"]["pending_response_type"] == "fall"
+    assert data["status"]["last_fall_detected"] is False
     assert data["speaker_request"]["requested"] is True
     assert data["speaker_request"]["payload"]["alert_level"] == "danger"
     assert "낙상이 감지되었습니다" in data["speaker_request"]["payload"]["message"]
@@ -141,7 +143,7 @@ def test_possible_fall_becomes_emergency_when_button_is_not_pressed(client):
         },
     )
 
-    state_service.abnormal_start_time = datetime.utcnow() - timedelta(seconds=11)
+    state_service.abnormal_start_time = datetime.utcnow() - timedelta(seconds=61)
     timeout_response = client.post(
         "/sensor/mmwave",
         json={
@@ -162,3 +164,5 @@ def test_possible_fall_becomes_emergency_when_button_is_not_pressed(client):
     assert data["status"]["pending_response_type"] is None
     assert data["status"]["last_reason"] == "No user response after possible fall"
     assert data["status"]["last_emergency_source"] == "fall"
+    assert data["status"]["last_fall_detected"] is True
+    assert data["fall_detection"]["detected"] is True

@@ -49,6 +49,7 @@ def test_weekly_report_aggregates_raw_mmwave_records(client):
     ).isoformat()
     records[1]["status"]["current_state"] = "EMERGENCY"
     records[1]["status"]["last_emergency_source"] = "fall"
+    records[1]["fall_detection"]["detected"] = True
 
     response = client.get("/reports/weekly")
 

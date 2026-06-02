@@ -48,7 +48,7 @@ class SensorService:
             detected=normalized.detected,
             zone=normalized.zone,
         )
-        fall_result = fall_detector.evaluate(
+        fall_candidate = fall_detector.evaluate(
             detected=normalized.detected,
             x=normalized.x,
             y=normalized.y,
@@ -56,12 +56,14 @@ class SensorService:
             velocity=normalized.velocity,
             still_time=normalized.still_time,
         )
+        fall_result = self._build_fall_result(fall_candidate, status)
         speaker_result = None
-        if fall_result["detected"]:
+        if fall_candidate["detected"] and status.current_state != "EMERGENCY":
             status = state_service.mark_possible_fall_detected(
-                score=fall_result["score"],
-                reason=fall_result["reason"],
+                score=fall_candidate["score"],
+                reason=fall_candidate["reason"],
             )
+            fall_result = self._build_fall_result(fall_candidate, status)
             speaker_result = device_service.trigger_speaker(
                 SpeakerRequest(
                     message="낙상이 감지되었습니다. 괜찮으시면 안전 확인 버튼을 눌러주세요.",
@@ -162,6 +164,29 @@ class SensorService:
 
     def get_last_events(self) -> Dict[str, Dict[str, Any]]:
         return self.last_events
+
+    def _build_fall_result(self, candidate: Dict[str, Any], status) -> Dict[str, Any]:
+        confirmed = (
+            status.current_state == "EMERGENCY"
+            and status.last_emergency_source == "fall"
+        )
+        if confirmed:
+            return {
+                **candidate,
+                "candidate_detected": bool(candidate.get("detected")),
+                "detected": True,
+                "reason": status.last_reason,
+            }
+        return {
+            **candidate,
+            "candidate_detected": bool(candidate.get("detected")),
+            "detected": False,
+            "reason": (
+                "Possible fall detected; waiting for safety confirmation."
+                if candidate.get("detected")
+                else candidate.get("reason")
+            ),
+        }
 
 
 sensor_service = SensorService()

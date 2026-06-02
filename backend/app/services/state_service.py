@@ -8,6 +8,8 @@ from .log_service import log_service
 
 
 class StateService:
+    RESPONSE_TIMEOUT_SECONDS = 60
+
     def __init__(self):
         self.current_state = "EMPTY"
         self.last_door_state: Optional[str] = None
@@ -88,13 +90,16 @@ class StateService:
         timeout_rule = inactivity_detector.evaluate_response_timeout(
             waiting_for_response=self.waiting_for_response,
             abnormal_start_time=self.abnormal_start_time,
-            timeout_seconds=10,
+            timeout_seconds=self.RESPONSE_TIMEOUT_SECONDS,
         )
         if timeout_rule["triggered"]:
             self.waiting_for_response = False
             response_type = self.pending_response_type or "inactivity"
             self.pending_response_type = None
             self.last_emergency_source = response_type
+            if response_type == "fall":
+                self.last_fall_detected = True
+                self.last_fall_at = datetime.utcnow().isoformat()
             alert_message = (
                 "No user response after possible fall; emergency alert created."
                 if response_type == "fall"
@@ -157,9 +162,9 @@ class StateService:
         return self.get_status()
 
     def mark_possible_fall_detected(self, score: float, reason: str) -> StatusSnapshot:
-        self.last_fall_detected = True
+        self.last_fall_detected = False
         self.last_fall_score = score
-        self.last_fall_at = datetime.utcnow().isoformat()
+        self.last_fall_at = None
         self.pending_fall_reason = reason
         self.waiting_for_response = True
         self.pending_response_type = "fall"
