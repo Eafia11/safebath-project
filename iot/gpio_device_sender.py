@@ -304,7 +304,11 @@ class DeviceHub:
             self.latest_status = status
             current_state = status.get("current_state")
             pending = status.get("pending_response_type")
-            fall_audio_key = status.get("last_fall_at") or "fall"
+            fall_audio_key = (
+                status.get("abnormal_start_time")
+                or status.get("last_fall_at")
+                or "fall"
+            )
             if pending == "fall" and fall_audio_key != self.last_fall_audio_key:
                 self.last_fall_audio_key = fall_audio_key
                 print(f"{timestamp()} playing fall audio: {self.audio_player.audio_file}")
