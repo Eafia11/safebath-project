@@ -47,6 +47,8 @@ def test_weekly_report_aggregates_raw_mmwave_records(client):
         second=0,
         microsecond=0,
     ).isoformat()
+    records[1]["status"]["current_state"] = "EMERGENCY"
+    records[1]["status"]["last_emergency_source"] = "fall"
 
     response = client.get("/reports/weekly")
 
@@ -60,10 +62,17 @@ def test_weekly_report_aggregates_raw_mmwave_records(client):
     assert summary["detected_count"] == 2
     assert summary["fall_count"] == 1
     assert summary["anomaly_count"] >= 1
+    assert summary["emergency_count"] == 1
+    assert summary["emergency_by_source"]["fall"] == 1
+    assert summary["safety_score"] < 100
     assert summary["night_toilet_count"] == 1
     assert summary["zone_duration_seconds"]["toilet"] == 120
     assert len(data["daily"]) == 7
     assert any(event["type"] == "fall" for event in data["abnormal_events"])
+    assert any(
+        event["type"] == "emergency" and event["source"] == "fall"
+        for event in data["abnormal_events"]
+    )
 
 
 def test_weekly_report_preprocesses_dense_raw_mmwave_records(client):

@@ -124,3 +124,4 @@ def test_possible_fall_becomes_emergency_when_button_is_not_pressed(client):
     assert data["status"]["waiting_for_response"] is False
     assert data["status"]["pending_response_type"] is None
     assert data["status"]["last_reason"] == "No user response after possible fall"
+    assert data["status"]["last_emergency_source"] == "fall"

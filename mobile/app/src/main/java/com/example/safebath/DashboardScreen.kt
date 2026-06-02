@@ -352,20 +352,8 @@ fun ReportTabContent(viewModel: BathViewModel) {
     val stayTimeData = dailyReport.map { it.maxStillTimeSeconds / 60f }.ifEmpty { List(7) { 0f } }
     val summary = weeklyReport?.summary
     val abnormalEvents = weeklyReport?.abnormalEvents.orEmpty().takeLast(10).asReversed()
-    val safetyScore = when {
-        summary == null -> 0
-        summary.emergencyCount > 0 -> 55
-        summary.fallCount > 0 -> 65
-        summary.anomalyCount > 0 -> 78
-        summary.rawRecordCount == 0 -> 0
-        else -> 92
-    }
-    val safetyLabel = when {
-        summary == null || summary.rawRecordCount == 0 -> "데이터 대기"
-        safetyScore >= 85 -> "안정적"
-        safetyScore >= 70 -> "주의"
-        else -> "위험"
-    }
+    val safetyScore = summary?.safetyScore ?: 0
+    val safetyLabel = summary?.safetyLabel ?: "데이터 대기"
     val peakDay = dailyReport.maxByOrNull { it.nightToiletCount }?.date ?: "-"
     val textMeasurer = rememberTextMeasurer()
 
@@ -501,6 +489,12 @@ private fun reportEventMessage(event: WeeklyReportEvent): String {
     val typeLabel = when (event.type) {
         "fall" -> "낙상 의심"
         "anomaly" -> "이상 패턴"
+        "emergency" -> when (event.source) {
+            "manual" -> "보호자 긴급 호출"
+            "fall" -> "낙상 미응답"
+            "inactivity" -> "이상행동 미응답"
+            else -> "긴급 상황"
+        }
         else -> event.type
     }
     val zoneLabel = when (event.zone) {

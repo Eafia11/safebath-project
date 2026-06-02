@@ -47,6 +47,12 @@ class ReportService:
             "anomaly_count": 0,
             "fall_count": 0,
             "emergency_count": 0,
+            "emergency_by_source": {
+                "fall": 0,
+                "inactivity": 0,
+                "manual": 0,
+                "unknown": 0,
+            },
             "night_toilet_count": 0,
         }
 
@@ -120,14 +126,33 @@ class ReportService:
                     )
 
             if current_state == "EMERGENCY":
+                emergency_source = self._normalize_emergency_source(
+                    status.get("last_emergency_source")
+                )
                 totals["emergency_count"] += 1
+                totals["emergency_by_source"][emergency_source] += 1
                 day["emergency_count"] += 1
+                day["emergency_by_source"][emergency_source] += 1
+                if self._should_emit_event(f"emergency:{emergency_source}", timestamp, last_event_at):
+                    abnormal_events.append(
+                        self._event_summary(
+                            timestamp=record.get("timestamp"),
+                            event_type="emergency",
+                            level="danger",
+                            zone=zone,
+                            still_time=still_time,
+                            reason=status.get("last_reason"),
+                            source=emergency_source,
+                        )
+                    )
 
         average_still_time = (
             round(sum(detected_still_times) / len(detected_still_times), 2)
             if detected_still_times
             else 0.0
         )
+
+        safety_score = self._calculate_safety_score(totals)
 
         return {
             "period": {
@@ -142,6 +167,8 @@ class ReportService:
             },
             "summary": {
                 **totals,
+                "safety_score": safety_score,
+                "safety_label": self._safety_label(safety_score, totals),
                 "average_still_time_seconds": average_still_time,
                 "zone_duration_seconds": zone_duration_seconds,
             },
@@ -166,6 +193,12 @@ class ReportService:
             "anomaly_count": 0,
             "fall_count": 0,
             "emergency_count": 0,
+            "emergency_by_source": {
+                "fall": 0,
+                "inactivity": 0,
+                "manual": 0,
+                "unknown": 0,
+            },
             "night_toilet_count": 0,
             "max_still_time_seconds": 0,
             "zone_counts": {},
@@ -259,6 +292,7 @@ class ReportService:
         zone: str,
         still_time: int,
         reason: Optional[str],
+        source: Optional[str] = None,
     ) -> Dict[str, Any]:
         return {
             "timestamp": timestamp,
@@ -267,7 +301,36 @@ class ReportService:
             "zone": zone,
             "still_time_seconds": still_time,
             "reason": reason,
+            "source": source,
         }
+
+    def _normalize_emergency_source(self, source: Optional[str]) -> str:
+        if source in {"fall", "inactivity", "manual"}:
+            return source
+        return "unknown"
+
+    def _calculate_safety_score(self, totals: Dict[str, Any]) -> int:
+        if int(totals.get("raw_record_count") or 0) == 0:
+            return 0
+
+        emergency_by_source = totals.get("emergency_by_source") or {}
+        score = 100
+        score -= int(emergency_by_source.get("fall") or 0) * 35
+        score -= int(emergency_by_source.get("inactivity") or 0) * 25
+        score -= int(emergency_by_source.get("manual") or 0) * 15
+        score -= int(emergency_by_source.get("unknown") or 0) * 20
+        score -= int(totals.get("fall_count") or 0) * 20
+        score -= int(totals.get("anomaly_count") or 0) * 8
+        return max(0, min(100, score))
+
+    def _safety_label(self, score: int, totals: Dict[str, Any]) -> str:
+        if int(totals.get("raw_record_count") or 0) == 0:
+            return "데이터 대기"
+        if score >= 85:
+            return "안정적"
+        if score >= 70:
+            return "주의"
+        return "위험"
 
     def _is_in_period(self, timestamp: Optional[str], start: datetime, end: datetime) -> bool:
         parsed = self._parse_timestamp(timestamp)

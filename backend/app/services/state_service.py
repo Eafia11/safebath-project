@@ -17,6 +17,7 @@ class StateService:
         self.last_motion_level: Optional[float] = None
         self.last_still_time: Optional[int] = None
         self.last_reason = "Initial state"
+        self.last_emergency_source: Optional[str] = None
         self.last_updated: Optional[str] = None
         self.abnormal_start_time: Optional[datetime] = None
         self.waiting_for_response = False
@@ -89,9 +90,9 @@ class StateService:
             self.waiting_for_response = False
             response_type = self.pending_response_type or "inactivity"
             self.pending_response_type = None
-            alert_type = "fall" if response_type == "fall" else "emergency"
+            self.last_emergency_source = response_type
             alert_message = (
-                "No user response after possible fall; fall emergency alert created."
+                "No user response after possible fall; emergency alert created."
                 if response_type == "fall"
                 else "No user response after abnormal activity; emergency alert created."
             )
@@ -102,11 +103,12 @@ class StateService:
             )
             self._update_state("EMERGENCY", reason)
             created_alert = alert_service.create_alert(
-                alert_type=alert_type,
+                alert_type="emergency",
                 message=alert_message,
                 level="danger",
                 target="guardian",
                 data={
+                    "emergency_source": response_type,
                     "elapsed_seconds": timeout_rule["elapsed_seconds"],
                     "current_state": self.current_state,
                     "last_zone": self.last_zone,
@@ -133,6 +135,8 @@ class StateService:
             last_door_state=self.last_door_state,
         )
         if not mmwave_rule["triggered"]:
+            if self.current_state != "EMERGENCY":
+                self.last_emergency_source = None
             return self.get_status()
 
         self._update_state(mmwave_rule["next_state"], mmwave_rule["reason"])
@@ -182,6 +186,7 @@ class StateService:
             self.pending_response_type = None
             self.pending_fall_reason = None
             self.last_fall_detected = False
+            self.last_emergency_source = None
             if self.last_mmwave_detected:
                 self._update_state("ACTIVE", "User confirmed safety")
             else:
@@ -191,6 +196,7 @@ class StateService:
             self.abnormal_start_time = None
             self.pending_response_type = None
             self.pending_fall_reason = None
+            self.last_emergency_source = "manual"
             self._update_state("EMERGENCY", "User triggered emergency call")
             created_alert = alert_service.create_alert(
                 alert_type="emergency",
@@ -198,6 +204,7 @@ class StateService:
                 level="danger",
                 target="guardian",
                 data={
+                    "emergency_source": "manual",
                     "current_state": self.current_state,
                     "reason": self.last_reason,
                 },
@@ -216,6 +223,7 @@ class StateService:
             self.last_fall_detected = False
             self.last_fall_score = 0.0
             self.last_fall_at = None
+            self.last_emergency_source = None
             self._update_state("EMPTY", "State reset requested by user")
 
         return self.get_status()
@@ -235,6 +243,7 @@ class StateService:
             last_motion_level=self.last_motion_level,
             last_still_time=self.last_still_time,
             last_reason=self.last_reason,
+            last_emergency_source=self.last_emergency_source,
             last_updated=self.last_updated,
             waiting_for_response=self.waiting_for_response,
             pending_response_type=self.pending_response_type,

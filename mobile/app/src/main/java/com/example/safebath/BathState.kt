@@ -57,6 +57,7 @@ data class StatusData(
     @SerializedName("last_motion_level") val lastMotionLevel: Double?,
     @SerializedName("last_still_time") val lastStillTime: Int?,
     @SerializedName("last_reason") val lastReason: String,
+    @SerializedName("last_emergency_source") val lastEmergencySource: String?,
     @SerializedName("last_updated") val lastUpdated: String?,
     @SerializedName("waiting_for_response") val waitingForResponse: Boolean,
     @SerializedName("pending_response_type") val pendingResponseType: String?,
@@ -110,11 +111,15 @@ data class WeeklyReportPeriod(
 
 data class WeeklyReportSummary(
     @SerializedName("raw_record_count") val rawRecordCount: Int,
+    @SerializedName("processed_record_count") val processedRecordCount: Int,
     @SerializedName("detected_count") val detectedCount: Int,
     @SerializedName("anomaly_count") val anomalyCount: Int,
     @SerializedName("fall_count") val fallCount: Int,
     @SerializedName("emergency_count") val emergencyCount: Int,
+    @SerializedName("emergency_by_source") val emergencyBySource: Map<String, Int>,
     @SerializedName("night_toilet_count") val nightToiletCount: Int,
+    @SerializedName("safety_score") val safetyScore: Int,
+    @SerializedName("safety_label") val safetyLabel: String,
     @SerializedName("average_still_time_seconds") val averageStillTimeSeconds: Double,
     @SerializedName("zone_duration_seconds") val zoneDurationSeconds: Map<String, Double>
 )
@@ -126,6 +131,7 @@ data class WeeklyReportDay(
     @SerializedName("anomaly_count") val anomalyCount: Int,
     @SerializedName("fall_count") val fallCount: Int,
     @SerializedName("emergency_count") val emergencyCount: Int,
+    @SerializedName("emergency_by_source") val emergencyBySource: Map<String, Int>,
     @SerializedName("night_toilet_count") val nightToiletCount: Int,
     @SerializedName("max_still_time_seconds") val maxStillTimeSeconds: Int,
     @SerializedName("zone_counts") val zoneCounts: Map<String, Int>
@@ -137,7 +143,8 @@ data class WeeklyReportEvent(
     @SerializedName("level") val level: String,
     @SerializedName("zone") val zone: String,
     @SerializedName("still_time_seconds") val stillTimeSeconds: Int,
-    @SerializedName("reason") val reason: String?
+    @SerializedName("reason") val reason: String?,
+    @SerializedName("source") val source: String?
 )
 
 data class WeeklyReportData(

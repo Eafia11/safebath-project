@@ -19,6 +19,10 @@ class StatusSnapshot(BaseModel):
     last_motion_level: Optional[float] = Field(None, description="Latest motion intensity.")
     last_still_time: Optional[int] = Field(None, description="Latest still-time value.")
     last_reason: str = Field(..., description="Reason for current state.")
+    last_emergency_source: Optional[str] = Field(
+        None,
+        description="Cause of the latest emergency state, such as fall, inactivity, or manual.",
+    )
     last_updated: Optional[str] = Field(None, description="Last state update timestamp.")
     waiting_for_response: bool = Field(..., description="Whether response confirmation is pending.")
     pending_response_type: Optional[str] = Field(

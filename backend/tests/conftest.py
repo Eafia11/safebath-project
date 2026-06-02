@@ -40,6 +40,7 @@ def reset_app_state():
     state_service.last_motion_level = None
     state_service.last_still_time = None
     state_service.last_reason = "Initial state"
+    state_service.last_emergency_source = None
     state_service.last_updated = None
     state_service.abnormal_start_time = None
     state_service.waiting_for_response = False
