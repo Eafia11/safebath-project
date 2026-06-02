@@ -39,6 +39,43 @@ def test_receive_door_event_updates_status(client):
     assert data["status"]["current_state"] == "ENTERING"
 
 
+def test_closed_door_uses_latest_mmwave_presence(client):
+    client.post("/sensor/door", json={"door_state": "open"})
+    client.post(
+        "/sensor/mmwave",
+        json={
+            "detected": True,
+            "x": 0.5,
+            "y": 1.3,
+            "motion_level": 0.1,
+            "still_time": 0,
+        },
+    )
+
+    active_response = client.post("/sensor/door", json={"door_state": "closed"})
+
+    assert active_response.status_code == 200
+    active_status = active_response.json()["data"]["status"]
+    assert active_status["current_state"] == "ACTIVE"
+
+    client.post(
+        "/sensor/mmwave",
+        json={
+            "detected": False,
+            "x": None,
+            "y": None,
+            "motion_level": 0.0,
+            "still_time": 0,
+        },
+    )
+
+    empty_response = client.post("/sensor/door", json={"door_state": "closed"})
+
+    assert empty_response.status_code == 200
+    empty_status = empty_response.json()["data"]["status"]
+    assert empty_status["current_state"] == "EMPTY"
+
+
 def test_receive_mmwave_triggers_speaker_when_fall_detected(client):
     first_response = client.post(
         "/sensor/mmwave",

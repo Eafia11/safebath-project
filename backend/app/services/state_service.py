@@ -52,8 +52,12 @@ class StateService:
 
         if door_state == "open":
             self._update_state("ENTERING", "Door opened and entry was detected")
-        elif door_state == "closed" and not self.last_mmwave_detected:
-            self._update_state("EMPTY", "Door closed and no occupant was detected")
+        elif door_state == "closed":
+            if self.last_mmwave_detected and self._is_mmwave_online():
+                self._update_state("ACTIVE", "Door closed and occupant was detected")
+            else:
+                self.last_mmwave_detected = False
+                self._update_state("EMPTY", "Door closed and no occupant was detected")
 
         return self.get_status()
 
