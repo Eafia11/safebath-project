@@ -168,6 +168,52 @@ def test_possible_fall_becomes_emergency_when_button_is_not_pressed(client):
     assert data["fall_detection"]["detected"] is True
 
 
+def test_possible_fall_stays_abnormal_until_user_response(client):
+    client.post(
+        "/sensor/mmwave",
+        json={
+            "detected": True,
+            "x": 0.0,
+            "y": 0.0,
+            "z": 1.2,
+            "motion_level": 0.5,
+            "velocity": 0.0,
+            "still_time": 0,
+        },
+    )
+    client.post(
+        "/sensor/mmwave",
+        json={
+            "detected": True,
+            "x": 0.1,
+            "y": 0.1,
+            "z": 0.7,
+            "motion_level": 0.0,
+            "velocity": 1.0,
+            "still_time": 10,
+        },
+    )
+
+    active_like_response = client.post(
+        "/sensor/mmwave",
+        json={
+            "detected": True,
+            "x": 0.2,
+            "y": 0.2,
+            "z": 0.7,
+            "motion_level": 0.3,
+            "velocity": 0.0,
+            "still_time": 0,
+        },
+    )
+
+    assert active_like_response.status_code == 200
+    status = active_like_response.json()["data"]["status"]
+    assert status["current_state"] == "ABNORMAL"
+    assert status["waiting_for_response"] is True
+    assert status["pending_response_type"] == "fall"
+
+
 def test_possible_fall_times_out_from_status_poll(client):
     client.post(
         "/sensor/mmwave",

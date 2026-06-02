@@ -90,6 +90,9 @@ class StateService:
         if self._apply_response_timeout():
             return self.get_status()
 
+        if self.waiting_for_response:
+            return self.get_status()
+
         mmwave_rule = inactivity_detector.evaluate_mmwave_rules(
             detected=detected,
             zone=zone,
