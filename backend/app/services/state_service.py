@@ -8,7 +8,7 @@ from .log_service import log_service
 
 
 class StateService:
-    RESPONSE_TIMEOUT_SECONDS = 60
+    RESPONSE_TIMEOUT_SECONDS = 10
 
     def __init__(self):
         self.current_state = "EMPTY"
