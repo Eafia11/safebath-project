@@ -186,6 +186,7 @@ fun HomeTabContent(isGuardian: Boolean, viewModel: BathViewModel) {
     val currentState by viewModel.currentState.collectAsState()
     val weeklyReport by viewModel.weeklyReport.collectAsState()
     val serverConnected by viewModel.serverConnected.collectAsState()
+    val dataSensorConnected by viewModel.dataSensorConnected.collectAsState()
     val todayReport = weeklyReport?.daily?.lastOrNull()
     val weeklySummary = weeklyReport?.summary
     val todayUsageCount = todayReport?.nightToiletCount ?: 0
@@ -227,7 +228,12 @@ fun HomeTabContent(isGuardian: Boolean, viewModel: BathViewModel) {
         Text("시스템 상태", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(12.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatusMiniCard("레이더 센서", "실시간 연동 중")
+            StatusMiniCard(
+                "데이터 센서",
+                if (dataSensorConnected) "센서 연결됨" else "센서 미연결",
+                if (dataSensorConnected) Color(0xFF2E7D32) else SafeBathTheme.AlertRed,
+                onRefresh = { viewModel.refreshBackendConnection() }
+            )
             StatusMiniCard(
                 "서버 동기화",
                 if (serverConnected) "서버 연결됨" else "연결 실패",

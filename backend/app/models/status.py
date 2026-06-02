@@ -7,6 +7,14 @@ class StatusSnapshot(BaseModel):
     current_state: str = Field(..., description="Current bathroom state.")
     last_door_state: Optional[str] = Field(None, description="Latest door sensor state.")
     last_mmwave_detected: bool = Field(..., description="Latest mmWave occupancy flag.")
+    last_mmwave_seen_at: Optional[str] = Field(
+        None,
+        description="Timestamp of the latest mmWave sample received by the backend.",
+    )
+    mmwave_online: bool = Field(
+        False,
+        description="Whether mmWave data has been received recently.",
+    )
     last_zone: Optional[str] = Field(None, description="Latest detected zone.")
     last_motion_level: Optional[float] = Field(None, description="Latest motion intensity.")
     last_still_time: Optional[int] = Field(None, description="Latest still-time value.")

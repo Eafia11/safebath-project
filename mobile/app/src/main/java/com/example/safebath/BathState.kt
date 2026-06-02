@@ -51,6 +51,8 @@ data class StatusData(
     @SerializedName("current_state") val currentState: String,
     @SerializedName("last_door_state") val lastDoorState: String?,
     @SerializedName("last_mmwave_detected") val lastMmwaveDetected: Boolean,
+    @SerializedName("last_mmwave_seen_at") val lastMmwaveSeenAt: String?,
+    @SerializedName("mmwave_online") val mmwaveOnline: Boolean,
     @SerializedName("last_zone") val lastZone: String?,
     @SerializedName("last_motion_level") val lastMotionLevel: Double?,
     @SerializedName("last_still_time") val lastStillTime: Int?,

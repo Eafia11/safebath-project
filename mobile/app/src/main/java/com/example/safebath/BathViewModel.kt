@@ -61,6 +61,9 @@ class BathViewModel : ViewModel() {
     private val _serverConnected = MutableStateFlow(false)
     val serverConnected: StateFlow<Boolean> = _serverConnected.asStateFlow()
 
+    private val _dataSensorConnected = MutableStateFlow(false)
+    val dataSensorConnected: StateFlow<Boolean> = _dataSensorConnected.asStateFlow()
+
     private val retrofit = Retrofit.Builder()
         .baseUrl(BASE_URL)
         .addConverterFactory(GsonConverterFactory.create())
@@ -104,6 +107,7 @@ class BathViewModel : ViewModel() {
             val statusResponse = apiService.getStatus()
             _statusState.value = statusResponse.data
             applyServerState(statusResponse.data.currentState)
+            _dataSensorConnected.value = statusResponse.data.mmwaveOnline
             _serverConnected.value = true
 
             runCatching { apiService.getAnomalyStatus() }
@@ -119,6 +123,7 @@ class BathViewModel : ViewModel() {
                 .onFailure { it.printStackTrace() }
         } catch (e: Exception) {
             _serverConnected.value = false
+            _dataSensorConnected.value = false
             e.printStackTrace()
         }
     }

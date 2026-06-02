@@ -222,10 +222,15 @@ class StateService:
 
     def get_status(self) -> StatusSnapshot:
         self._apply_mmwave_stale_timeout()
+        mmwave_online = self._is_mmwave_online()
         return StatusSnapshot(
             current_state=self.current_state,
             last_door_state=self.last_door_state,
             last_mmwave_detected=self.last_mmwave_detected,
+            last_mmwave_seen_at=self.last_mmwave_seen_at.isoformat()
+            if self.last_mmwave_seen_at
+            else None,
+            mmwave_online=mmwave_online,
             last_zone=self.last_zone,
             last_motion_level=self.last_motion_level,
             last_still_time=self.last_still_time,
@@ -240,6 +245,11 @@ class StateService:
             last_fall_score=self.last_fall_score,
             last_fall_at=self.last_fall_at,
         )
+
+    def _is_mmwave_online(self, timeout_seconds: int = 10) -> bool:
+        if self.last_mmwave_seen_at is None:
+            return False
+        return datetime.utcnow() - self.last_mmwave_seen_at < timedelta(seconds=timeout_seconds)
 
     def _apply_mmwave_stale_timeout(self, timeout_seconds: int = 10) -> None:
         if self.current_state not in {"ACTIVE", "TOILET_USE"}:
