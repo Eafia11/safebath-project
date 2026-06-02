@@ -143,7 +143,7 @@ def test_possible_fall_becomes_emergency_when_button_is_not_pressed(client):
         },
     )
 
-    state_service.abnormal_start_time = datetime.utcnow() - timedelta(seconds=11)
+    state_service.abnormal_start_time = datetime.utcnow() - timedelta(seconds=21)
     timeout_response = client.post(
         "/sensor/mmwave",
         json={
