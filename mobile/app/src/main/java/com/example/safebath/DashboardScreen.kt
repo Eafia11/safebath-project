@@ -82,25 +82,37 @@ fun UsagePatternDashboard(
     val anomalyInfo by viewModel.anomalyState.collectAsState()
     val statusInfo by viewModel.statusState.collectAsState()
     val latestAlert by viewModel.latestAlert.collectAsState()
+    val confirmedEmergency =
+        anomalyInfo?.fallDetected == true ||
+        statusInfo?.currentState == "EMERGENCY"
+    val waitingForSafety =
+        statusInfo?.waitingForResponse == true ||
+        statusInfo?.currentState == "ABNORMAL"
+    val pendingType = statusInfo?.pendingResponseType
 
     LaunchedEffect(anomalyInfo, statusInfo) {
-        isEmergencyDetected =
-            anomalyInfo?.fallDetected == true ||
-            statusInfo?.waitingForResponse == true ||
-            statusInfo?.currentState == "ABNORMAL" ||
-            statusInfo?.currentState == "EMERGENCY"
+        isEmergencyDetected = confirmedEmergency || waitingForSafety
     }
 
     if (isEmergencyDetected) {
-        LaunchedEffect(Unit) {
+        LaunchedEffect(confirmedEmergency) {
             playingRingtone = playEmergencyAlarm(context)
-            viewModel.updateState(BathState.EMERGENCY)
+        }
+        val dialogTitle = when {
+            confirmedEmergency -> "긴급 상황 감지"
+            pendingType == "fall" -> "낙상 의심 감지"
+            else -> "안전 확인 요청"
+        }
+        val dialogMessage = when {
+            confirmedEmergency -> "응답이 없어 긴급 상황으로 전환되었습니다."
+            pendingType == "fall" -> "낙상으로 의심되는 움직임이 감지되었습니다. 괜찮으시면 안전 확인을 눌러주세요."
+            else -> "비정상적인 체류 또는 움직임이 감지되었습니다. 괜찮으시면 안전 확인을 눌러주세요."
         }
         AlertDialog(
             onDismissRequest = { },
             icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = SafeBathTheme.AlertRed) },
-            title = { Text("이상 상황 감지", fontWeight = FontWeight.Bold, color = SafeBathTheme.AlertRed) },
-            text = { Text("욕실 내 낙상 또는 비정상 체류가 감지되었습니다.") },
+            title = { Text(dialogTitle, fontWeight = FontWeight.Bold, color = SafeBathTheme.AlertRed) },
+            text = { Text(dialogMessage) },
             confirmButton = {
                 Button(
                     onClick = {
