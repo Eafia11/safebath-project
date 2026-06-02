@@ -35,6 +35,7 @@ def reset_app_state():
     state_service.current_state = "EMPTY"
     state_service.last_door_state = None
     state_service.last_mmwave_detected = False
+    state_service.last_mmwave_seen_at = None
     state_service.last_zone = None
     state_service.last_motion_level = None
     state_service.last_still_time = None

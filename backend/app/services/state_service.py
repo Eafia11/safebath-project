@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from ..detectors.inactivity_detector import inactivity_detector
@@ -12,6 +12,7 @@ class StateService:
         self.current_state = "EMPTY"
         self.last_door_state: Optional[str] = None
         self.last_mmwave_detected = False
+        self.last_mmwave_seen_at: Optional[datetime] = None
         self.last_zone: Optional[str] = None
         self.last_motion_level: Optional[float] = None
         self.last_still_time: Optional[int] = None
@@ -74,6 +75,7 @@ class StateService:
         )
 
         self.last_mmwave_detected = detected
+        self.last_mmwave_seen_at = datetime.utcnow()
         self.last_zone = zone
         self.last_motion_level = motion_level
         self.last_still_time = still_time
@@ -180,7 +182,10 @@ class StateService:
             self.pending_response_type = None
             self.pending_fall_reason = None
             self.last_fall_detected = False
-            self._update_state("ACTIVE", "User confirmed safety")
+            if self.last_mmwave_detected:
+                self._update_state("ACTIVE", "User confirmed safety")
+            else:
+                self._update_state("EMPTY", "User confirmed safety and no occupant was detected")
         elif button_type == "emergency_call":
             self.waiting_for_response = False
             self.abnormal_start_time = None
@@ -216,6 +221,7 @@ class StateService:
         return self.get_status()
 
     def get_status(self) -> StatusSnapshot:
+        self._apply_mmwave_stale_timeout()
         return StatusSnapshot(
             current_state=self.current_state,
             last_door_state=self.last_door_state,
@@ -234,6 +240,22 @@ class StateService:
             last_fall_score=self.last_fall_score,
             last_fall_at=self.last_fall_at,
         )
+
+    def _apply_mmwave_stale_timeout(self, timeout_seconds: int = 10) -> None:
+        if self.current_state not in {"ACTIVE", "TOILET_USE"}:
+            return
+        if self.last_mmwave_seen_at is None:
+            self.last_mmwave_detected = False
+            self._update_state("EMPTY", "No mmWave data has been received")
+            return
+        if datetime.utcnow() - self.last_mmwave_seen_at < timedelta(seconds=timeout_seconds):
+            return
+
+        self.last_mmwave_detected = False
+        self.last_zone = None
+        self.last_motion_level = 0.0
+        self.last_still_time = 0
+        self._update_state("EMPTY", "mmWave data timed out")
 
 
 state_service = StateService()

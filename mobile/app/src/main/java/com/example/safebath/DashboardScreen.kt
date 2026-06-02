@@ -230,7 +230,7 @@ fun HomeTabContent(isGuardian: Boolean, viewModel: BathViewModel) {
             StatusMiniCard("레이더 센서", "실시간 연동 중")
             StatusMiniCard(
                 "서버 동기화",
-                if (serverConnected) "AWS 연결됨" else "연결 실패",
+                if (serverConnected) "서버 연결됨" else "연결 실패",
                 if (serverConnected) Color(0xFF2E7D32) else SafeBathTheme.AlertRed,
                 onRefresh = { viewModel.refreshBackendConnection() }
             )
