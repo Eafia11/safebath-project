@@ -182,6 +182,8 @@ fun UsagePatternDashboard(
 fun HomeTabContent(isGuardian: Boolean, viewModel: BathViewModel) {
     val scrollState = rememberScrollState()
     val currentState by viewModel.currentState.collectAsState()
+    val anomalyInfo by viewModel.anomalyState.collectAsState()
+    val statusInfo by viewModel.statusState.collectAsState()
     val weeklyReport by viewModel.weeklyReport.collectAsState()
     val serverConnected by viewModel.serverConnected.collectAsState()
     val dataSensorConnected by viewModel.dataSensorConnected.collectAsState()
@@ -190,6 +192,11 @@ fun HomeTabContent(isGuardian: Boolean, viewModel: BathViewModel) {
     val todayUsageCount = todayReport?.nightToiletCount ?: 0
     val averageStayMinutes = ((weeklySummary?.averageStillTimeSeconds ?: 0.0) / 60.0).toInt()
     val abnormalCount = (weeklySummary?.anomalyCount ?: 0) + (weeklySummary?.fallCount ?: 0)
+    val displayState = when {
+        anomalyInfo?.fallDetected == true || statusInfo?.currentState == "EMERGENCY" -> BathState.EMERGENCY
+        statusInfo?.waitingForResponse == true || statusInfo?.currentState == "ABNORMAL" -> BathState.ABNORMAL
+        else -> currentState
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(scrollState)) {
         Row(
@@ -220,7 +227,7 @@ fun HomeTabContent(isGuardian: Boolean, viewModel: BathViewModel) {
             }
         }
 
-        RealTimeStatusCard(state = currentState)
+        RealTimeStatusCard(state = displayState)
         Spacer(modifier = Modifier.height(24.dp))
 
         Text("시스템 상태", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
