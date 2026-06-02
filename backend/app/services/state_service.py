@@ -87,53 +87,7 @@ class StateService:
         self.last_motion_level = motion_level
         self.last_still_time = still_time
 
-        timeout_rule = inactivity_detector.evaluate_response_timeout(
-            waiting_for_response=self.waiting_for_response,
-            abnormal_start_time=self.abnormal_start_time,
-            timeout_seconds=self.RESPONSE_TIMEOUT_SECONDS,
-        )
-        if timeout_rule["triggered"]:
-            self.waiting_for_response = False
-            response_type = self.pending_response_type or "inactivity"
-            self.pending_response_type = None
-            self.last_emergency_source = response_type
-            if response_type == "fall":
-                self.last_fall_detected = True
-                self.last_fall_at = datetime.utcnow().isoformat()
-            alert_message = (
-                "No user response after possible fall; emergency alert created."
-                if response_type == "fall"
-                else "No user response after abnormal activity; emergency alert created."
-            )
-            reason = (
-                "No user response after possible fall"
-                if response_type == "fall"
-                else timeout_rule["reason"]
-            )
-            self._update_state("EMERGENCY", reason)
-            created_alert = alert_service.create_alert(
-                alert_type="emergency",
-                message=alert_message,
-                level="danger",
-                target="guardian",
-                data={
-                    "emergency_source": response_type,
-                    "elapsed_seconds": timeout_rule["elapsed_seconds"],
-                    "current_state": self.current_state,
-                    "last_zone": self.last_zone,
-                    "last_still_time": self.last_still_time,
-                    "fall_score": self.last_fall_score if response_type == "fall" else None,
-                    "reason": self.last_reason,
-                },
-            )
-            log_service.add_log(
-                log_type="alert",
-                message="Fall alert created after no response"
-                if response_type == "fall"
-                else "Emergency alert created after no response",
-                data={"alert": created_alert.model_dump()},
-                level="warning",
-            )
+        if self._apply_response_timeout():
             return self.get_status()
 
         mmwave_rule = inactivity_detector.evaluate_mmwave_rules(
@@ -238,6 +192,7 @@ class StateService:
         return self.get_status()
 
     def get_status(self) -> StatusSnapshot:
+        self._apply_response_timeout()
         self._apply_mmwave_stale_timeout()
         mmwave_online = self._is_mmwave_online()
         return StatusSnapshot(
@@ -268,6 +223,59 @@ class StateService:
         if self.last_mmwave_seen_at is None:
             return False
         return datetime.utcnow() - self.last_mmwave_seen_at < timedelta(seconds=timeout_seconds)
+
+    def _apply_response_timeout(self) -> bool:
+        timeout_rule = inactivity_detector.evaluate_response_timeout(
+            waiting_for_response=self.waiting_for_response,
+            abnormal_start_time=self.abnormal_start_time,
+            timeout_seconds=self.RESPONSE_TIMEOUT_SECONDS,
+        )
+        if not timeout_rule["triggered"]:
+            return False
+
+        self.waiting_for_response = False
+        response_type = self.pending_response_type or "inactivity"
+        self.pending_response_type = None
+        self.last_emergency_source = response_type
+        if response_type == "fall":
+            self.last_fall_detected = True
+            self.last_fall_at = datetime.utcnow().isoformat()
+
+        alert_message = (
+            "No user response after possible fall; emergency alert created."
+            if response_type == "fall"
+            else "No user response after abnormal activity; emergency alert created."
+        )
+        reason = (
+            "No user response after possible fall"
+            if response_type == "fall"
+            else timeout_rule["reason"]
+        )
+        self._update_state("EMERGENCY", reason)
+        created_alert = alert_service.create_alert(
+            alert_type="emergency",
+            message=alert_message,
+            level="danger",
+            target="guardian",
+            data={
+                "emergency_source": response_type,
+                "elapsed_seconds": timeout_rule["elapsed_seconds"],
+                "current_state": self.current_state,
+                "last_zone": self.last_zone,
+                "last_still_time": self.last_still_time,
+                "fall_score": self.last_fall_score if response_type == "fall" else None,
+                "reason": self.last_reason,
+            },
+        )
+        log_service.add_log(
+            log_type="alert",
+            message="Fall alert created after no response"
+            if response_type == "fall"
+            else "Emergency alert created after no response",
+            data={"alert": created_alert.model_dump()},
+            level="warning",
+        )
+        return True
 
     def _apply_mmwave_stale_timeout(self, timeout_seconds: int = 10) -> None:
         if self.current_state not in {"ACTIVE", "TOILET_USE"}:

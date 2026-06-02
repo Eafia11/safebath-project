@@ -166,3 +166,41 @@ def test_possible_fall_becomes_emergency_when_button_is_not_pressed(client):
     assert data["status"]["last_emergency_source"] == "fall"
     assert data["status"]["last_fall_detected"] is True
     assert data["fall_detection"]["detected"] is True
+
+
+def test_possible_fall_times_out_from_status_poll(client):
+    client.post(
+        "/sensor/mmwave",
+        json={
+            "detected": True,
+            "x": 0.0,
+            "y": 0.0,
+            "z": 1.2,
+            "motion_level": 0.5,
+            "velocity": 0.0,
+            "still_time": 0,
+        },
+    )
+    client.post(
+        "/sensor/mmwave",
+        json={
+            "detected": True,
+            "x": 0.1,
+            "y": 0.1,
+            "z": 0.7,
+            "motion_level": 0.0,
+            "velocity": 1.0,
+            "still_time": 10,
+        },
+    )
+
+    state_service.abnormal_start_time = datetime.utcnow() - timedelta(seconds=21)
+    response = client.get("/status")
+
+    assert response.status_code == 200
+    status = response.json()["data"]
+    assert status["current_state"] == "EMERGENCY"
+    assert status["waiting_for_response"] is False
+    assert status["pending_response_type"] is None
+    assert status["last_emergency_source"] == "fall"
+    assert status["last_fall_detected"] is True
