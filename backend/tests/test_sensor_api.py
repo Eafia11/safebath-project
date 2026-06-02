@@ -143,7 +143,7 @@ def test_possible_fall_becomes_emergency_when_button_is_not_pressed(client):
         },
     )
 
-    state_service.abnormal_start_time = datetime.utcnow() - timedelta(seconds=21)
+    state_service.abnormal_start_time = datetime.utcnow() - timedelta(seconds=11)
     timeout_response = client.post(
         "/sensor/mmwave",
         json={
@@ -194,7 +194,7 @@ def test_possible_fall_times_out_from_status_poll(client):
         },
     )
 
-    state_service.abnormal_start_time = datetime.utcnow() - timedelta(seconds=21)
+    state_service.abnormal_start_time = datetime.utcnow() - timedelta(seconds=11)
     response = client.get("/status")
 
     assert response.status_code == 200
