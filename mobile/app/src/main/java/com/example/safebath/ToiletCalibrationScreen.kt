@@ -53,6 +53,44 @@ fun ToiletCalibrationScreen(
 
     // 💡 [핵심] 측정된 좌표들을 임시로 모아둘 장바구니(Map)
     val savedCoordinates = remember { mutableStateMapOf<CalibrationZone, Pair<Float, Float>>() }
+    val serverZones by viewModel.calibratedZones.collectAsState()
+    var showUseSavedDialog by remember { mutableStateOf(false) }
+    var hasAskedSavedDialog by remember { mutableStateOf(false) }
+    val serverCoordinates = remember(serverZones) {
+        buildMap {
+            serverZones?.toilet?.toPair()?.let { put(CalibrationZone.TOILET, it) }
+            serverZones?.sink?.toPair()?.let { put(CalibrationZone.SINK, it) }
+            serverZones?.bath?.toPair()?.let { put(CalibrationZone.BATHTUB, it) }
+        }
+    }
+
+    LaunchedEffect(serverCoordinates, isSetupMode) {
+        if (!isSetupMode && !hasAskedSavedDialog && serverCoordinates.containsKey(CalibrationZone.TOILET)) {
+            showUseSavedDialog = true
+            hasAskedSavedDialog = true
+        }
+    }
+
+    if (showUseSavedDialog) {
+        AlertDialog(
+            onDismissRequest = { showUseSavedDialog = false },
+            title = { Text("기존 공간 설정 사용") },
+            text = { Text("서버에 저장된 공간 좌표가 있습니다. 기존 설정을 사용해서 바로 대시보드로 이동할까요?") },
+            confirmButton = {
+                Button(onClick = {
+                    showUseSavedDialog = false
+                    onConfirm(serverCoordinates)
+                }) {
+                    Text("네, 사용할게요")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUseSavedDialog = false }) {
+                    Text("다시 설정")
+                }
+            }
+        )
+    }
 
     // --- 화면 A: 체크박스로 설정할 구역 고르기 ---
     if (!isSetupMode) {
@@ -108,7 +146,10 @@ fun ToiletCalibrationScreen(
             Spacer(modifier = Modifier.weight(1f))
 
             Button(
-                onClick = { isSetupMode = true }, // 다음 화면으로 넘어가기
+                onClick = {
+                    viewModel.startCalibrationSession()
+                    isSetupMode = true
+                }, // 다음 화면으로 넘어가기
                 modifier = Modifier.fillMaxWidth().height(60.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = SafeBathTheme.PrimaryBlue),
                 shape = MaterialTheme.shapes.medium
@@ -154,14 +195,8 @@ fun ToiletCalibrationScreen(
             Button(
                 onClick = {
                     // 1. 센서에서 받아왔다고 가정하는 더미 좌표
-                    val dummyCoordinate = when (currentZone) {
-                        CalibrationZone.TOILET -> Pair(1.25f, 0.78f)
-                        CalibrationZone.SINK -> Pair(0.85f, 1.45f)
-                        CalibrationZone.BATHTUB -> Pair(1.95f, 2.10f)
-                    }
 
                     // 2. 장바구니(Map)에 현재 구역 좌표 담기
-                    savedCoordinates[currentZone] = dummyCoordinate
 
                     // 💡 [신규] 백엔드 서버로 실제 좌표 전송!
                     val backendZoneName = when(currentZone) {
@@ -169,7 +204,7 @@ fun ToiletCalibrationScreen(
                         CalibrationZone.SINK -> "sink"
                         CalibrationZone.BATHTUB -> "bath"
                     }
-                    viewModel.sendZoneCoordinate(backendZoneName, dummyCoordinate.first, dummyCoordinate.second)
+                    viewModel.sendZoneCoordinate(backendZoneName)
 
                     // 3. 다음 단계로 넘어가거나 완료하기
                     if (currentStepIndex < activeZones.size - 1) {
@@ -193,4 +228,9 @@ fun ToiletCalibrationScreen(
             }
         }
     }
+}
+
+private fun CalibratedZoneData.toPair(): Pair<Float, Float>? {
+    if (!calibrated || centerX == null || centerY == null) return null
+    return Pair(centerX.toFloat(), centerY.toFloat())
 }

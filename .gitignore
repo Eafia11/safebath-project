@@ -1,37 +1,25 @@
-<<<<<<< HEAD
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
-=======
-# ===== Python =====
+# Python
 venv/
 __pycache__/
 *.pyc
 .env
+data/*.db
 
-# ===== Android =====
+# Android / Gradle
 .gradle/
+.kotlin/
 local.properties
 *.iml
-.idea/
 build/
+app/build/
+mobile/.gradle/
+mobile/.kotlin/
+mobile/app/build/
 
-# ===== VS Code =====
+# IDE
+.idea/
 .vscode/
 
-# ===== OS =====
+# OS
 .DS_Store
 Thumbs.db
->>>>>>> e1394c4221058dabc7a5a6ee0760ab049419288a
