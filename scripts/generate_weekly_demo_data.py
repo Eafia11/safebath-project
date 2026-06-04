@@ -184,7 +184,7 @@ def build_rows(days: int, seed: int, start_date: datetime) -> list[dict[str, Any
             )
         )
 
-        if day_index % 3 != 1:
+        if day_index % 7 in {1, 5}:
             rows.extend(
                 normal_zone_rows(
                     random,
