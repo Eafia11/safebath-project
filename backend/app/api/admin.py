@@ -1,8 +1,10 @@
 import csv
 from io import StringIO
+from typing import Optional
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import Response
+from pydantic import BaseModel, Field
 
 from ..core.security import verify_api_key
 from ..models.common import success_response
@@ -15,6 +17,32 @@ from ..services.session_service import session_service
 from ..services.state_service import state_service
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(verify_api_key)])
+
+
+class DemoMmwaveRecord(BaseModel):
+    timestamp: str
+    detected: bool = False
+    x: Optional[float] = None
+    y: Optional[float] = None
+    z: Optional[float] = None
+    zone: Optional[str] = None
+    motion_level: float = 0.0
+    velocity: float = 0.0
+    still_time: int = 0
+    current_state: str = "EMPTY"
+    anomaly_detected: bool = False
+    anomaly_score: float = 0.0
+    anomaly_reason: Optional[str] = None
+    fall_detected: bool = False
+    fall_score: float = 0.0
+    fall_reason: Optional[str] = None
+    emergency_source: Optional[str] = None
+    scenario: Optional[str] = None
+
+
+class DemoMmwaveImportRequest(BaseModel):
+    records: list[DemoMmwaveRecord] = Field(default_factory=list, max_length=20000)
+    clear_existing: bool = False
 
 
 @router.get("/snapshot", response_model=CommonResponse)
@@ -75,6 +103,73 @@ def download_tuning_csv(limit: int = 100):
         content=buffer.getvalue(),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=safebath_tuning.csv"},
+    )
+
+
+@router.post("/demo/mmwave", response_model=CommonResponse)
+def import_demo_mmwave_records(request: DemoMmwaveImportRequest):
+    if request.clear_existing:
+        sensor_repository.clear()
+
+    imported = []
+    for record in request.records:
+        payload = {
+            "detected": record.detected,
+            "x": record.x,
+            "y": record.y,
+            "z": record.z,
+            "zone": record.zone,
+            "motion_level": record.motion_level,
+            "velocity": record.velocity,
+            "still_time": record.still_time,
+            "scenario": record.scenario,
+        }
+        status = {
+            "current_state": record.current_state,
+            "last_zone": record.zone,
+            "last_motion_level": record.motion_level,
+            "last_still_time": record.still_time,
+            "last_reason": record.anomaly_reason or record.fall_reason or "Imported demo record",
+            "last_emergency_source": record.emergency_source,
+        }
+        anomaly = {
+            "detected": record.anomaly_detected,
+            "score": record.anomaly_score,
+            "reason": record.anomaly_reason,
+        }
+        fall_detection = {
+            "detected": record.fall_detected,
+            "score": record.fall_score,
+            "reason": record.fall_reason,
+        }
+        feature_vector = {
+            "motion_level": record.motion_level,
+            "velocity": record.velocity,
+            "still_time": record.still_time,
+            "zone": record.zone,
+        }
+        imported.append(
+            sensor_repository.save_mmwave(
+                timestamp=record.timestamp,
+                payload=payload,
+                feature_vector=feature_vector,
+                anomaly=anomaly,
+                fall_detection=fall_detection,
+                status=status,
+            )
+        )
+
+    timestamps = [record.timestamp for record in request.records]
+    return success_response(
+        message="Demo mmWave records imported successfully.",
+        data={
+            "imported_count": len(imported),
+            "clear_existing": request.clear_existing,
+            "period": {
+                "start": min(timestamps) if timestamps else None,
+                "end": max(timestamps) if timestamps else None,
+            },
+        },
     )
 
 
