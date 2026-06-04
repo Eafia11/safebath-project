@@ -161,7 +161,7 @@ def build_rows(days: int, seed: int, start_date: datetime) -> list[dict[str, Any
                 day.replace(hour=7, minute=random.randint(12, 25), second=0),
                 "toilet",
                 "morning_toilet",
-                duration_minutes=random.randint(3, 6),
+                duration_minutes=random.randint(7, 11),
             )
         )
         rows.extend(
@@ -170,20 +170,19 @@ def build_rows(days: int, seed: int, start_date: datetime) -> list[dict[str, Any
                 day.replace(hour=7, minute=random.randint(28, 38), second=0),
                 "sink",
                 "morning_sink",
-                duration_minutes=random.randint(2, 4),
+                duration_minutes=random.randint(4, 7),
             )
         )
 
-        if day_index % 2 == 0:
-            rows.extend(
-                normal_zone_rows(
-                    random,
-                    day.replace(hour=20, minute=random.randint(30, 50), second=0),
-                    "bath",
-                    "evening_bath",
-                    duration_minutes=random.randint(5, 9),
-                )
+        rows.extend(
+            normal_zone_rows(
+                random,
+                day.replace(hour=20, minute=random.randint(30, 50), second=0),
+                "bath",
+                "evening_bath",
+                duration_minutes=random.randint(10, 16),
             )
+        )
 
         if day_index % 3 != 1:
             rows.extend(
@@ -192,7 +191,7 @@ def build_rows(days: int, seed: int, start_date: datetime) -> list[dict[str, Any
                     day.replace(hour=23, minute=random.randint(10, 45), second=0),
                     "toilet",
                     "night_toilet",
-                    duration_minutes=random.randint(2, 4),
+                    duration_minutes=random.randint(3, 6),
                 )
             )
 
